@@ -195,6 +195,30 @@
   .btn-gold { background: var(--gold); color: var(--gold-foreground); }
   .btn-cool { background: var(--cool); color: oklch(0.2 0.05 240); }
   .btn-ghost { background: oklch(1 0 0 / 0.1); color: var(--panel-foreground); }
+  /* Solid top-of-screen chips: stay readable over bright sky */
+  .hud-chip {
+    background: oklch(0.2 0.035 260 / 0.94);
+    color: var(--panel-foreground);
+    border: 2px solid oklch(1 0 0 / 0.3);
+    border-radius: 1rem;
+    box-shadow: 0 4px 0 oklch(0 0 0 / 0.35), 0 10px 24px -6px oklch(0 0 0 / 0.5);
+  }
+  button.hud-chip:hover { filter: brightness(1.2); }
+  button.hud-chip:active { transform: translateY(3px); box-shadow: 0 1px 0 oklch(0 0 0 / 0.35); }
+  @keyframes chest-shake {
+    0%, 100% { transform: rotate(0); }
+    20% { transform: rotate(-4deg); }
+    40% { transform: rotate(4deg); }
+    60% { transform: rotate(-3deg); }
+    80% { transform: rotate(3deg); }
+  }
+  .animate-chest-shake { animation: chest-shake 0.9s ease-in-out infinite; }
+  @keyframes chest-rays { to { transform: rotate(360deg); } }
+  .chest-rays {
+    background: repeating-conic-gradient(from 0deg, oklch(0.9 0.17 90 / 0.55) 0deg 10deg, transparent 10deg 30deg);
+    animation: chest-rays 8s linear infinite;
+    mask-image: radial-gradient(circle, black 30%, transparent 70%);
+  }
 }
 
 @keyframes pop-rise {
