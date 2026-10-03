@@ -496,7 +496,7 @@ export function step(rawDt: number) {
         nx = P.x;
         nz = P.z;
       }
-    } else {
+    } else if (blockedBy !== "pillar") {
       // Unstick: lift onto whatever we're overlapping so the car isn't wedged.
       const top = Math.max(groundAt(P.x, P.z), P.y);
       P.y = Math.min(top + 0.4, P.y + 6 * dt);
