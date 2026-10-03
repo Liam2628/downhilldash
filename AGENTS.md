@@ -9,3 +9,5 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 - Game math code (src/game) uses dense typed-array indexing, so tsconfig disables noUncheckedIndexedAccess and exactOptionalPropertyTypes.
+
+- Dev-only devtools source tags are stripped from src/game and src/components .tsx files in vite.config.ts, because the 3D renderer crashes on dashed prop names.
