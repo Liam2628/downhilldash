@@ -1,0 +1,323 @@
+import { useEffect, useRef, useState } from "react";
+import { useGame, useSave } from "../store";
+import { audio } from "../audio";
+import { returnToLobby } from "../physics";
+import { WheelIcon } from "./WheelIcon";
+import { MenuPanel } from "./Menus";
+import { SettingsModal } from "./Settings";
+import { Settings2, Volume2, VolumeX } from "lucide-react";
+
+function fmtTime(t: number) {
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return `${m}:${s.toFixed(2).padStart(5, "0")}`;
+}
+
+function WheelCounter() {
+  const wheels = useSave((s) => s.wheels);
+  const [bump, setBump] = useState(0);
+  const prev = useRef(wheels);
+  useEffect(() => {
+    if (wheels > prev.current) setBump((b) => b + 1);
+    prev.current = wheels;
+  }, [wheels]);
+  return (
+    <div className="panel flex items-center gap-2 px-3 py-1.5">
+      <span key={bump} className="animate-wheel-bump inline-flex">
+        <WheelIcon className="h-8 w-8" />
+      </span>
+      <span className="font-display text-2xl text-gold tabular-nums">{wheels.toLocaleString()}</span>
+    </div>
+  );
+}
+
+function TopBar() {
+  const setSettingsOpen = useGame((s) => s.setSettingsOpen);
+  const muted = useSave((s) => s.settings.muted);
+  const setSettings = useSave((s) => s.setSettings);
+  const showFps = useSave((s) => s.settings.showFps);
+  const fps = useGame((s) => s.hud.fps);
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4">
+      <div className="pointer-events-auto flex items-center gap-3">
+        <WheelCounter />
+        {showFps && <div className="panel px-2 py-1 font-mono text-xs">{fps} FPS</div>}
+      </div>
+      <div className="pointer-events-auto flex gap-2">
+        <button
+          aria-label={muted ? "Unmute" : "Mute"}
+          className="btn-game btn-ghost panel !p-2.5"
+          onClick={() => setSettings({ muted: !muted })}
+        >
+          {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+        </button>
+        <button
+          aria-label="Settings"
+          className="btn-game btn-ghost panel !p-2.5"
+          onClick={() => {
+            audio.play("ui");
+            setSettingsOpen(true);
+          }}
+        >
+          <Settings2 className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Speedo() {
+  const speed = useGame((s) => s.hud.speed);
+  const units = useSave((s) => s.settings.units);
+  const v = units === "kmh" ? speed * 3.6 : speed * 2.237;
+  const boostState = useGame((s) => s.hud.boostState);
+  const boostFrac = useGame((s) => s.hud.boostFrac);
+  const combo = useGame((s) => s.hud.combo);
+  const label = boostState === "ready" ? "BOOST READY · SHIFT" : boostState === "active" ? "BOOSTING!" : "COOLING DOWN";
+  const barColor = boostState === "ready" ? "bg-cool" : boostState === "active" ? "bg-hot" : "bg-panel-foreground/40";
+  return (
+    <div className="pointer-events-none absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2">
+      {combo > 1 && (
+        <div className="font-display text-xl text-hot text-outline">COMBO x{combo.toFixed(1)}</div>
+      )}
+      <div className="flex items-end gap-1">
+        <span className="font-display text-6xl leading-none text-panel-foreground text-outline tabular-nums">
+          {Math.round(v)}
+        </span>
+        <span className="mb-1 font-display text-lg text-panel-foreground/80 text-outline">
+          {units === "kmh" ? "KM/H" : "MPH"}
+        </span>
+      </div>
+      <div className="panel w-72 px-3 py-2">
+        <div className="mb-1 flex justify-between text-[11px] font-semibold uppercase tracking-wider">
+          <span className={boostState === "ready" ? "text-cool" : boostState === "active" ? "text-hot" : "opacity-70"}>{label}</span>
+        </div>
+        <div className="h-3 overflow-hidden rounded-full bg-panel-foreground/10">
+          <div className={`h-full rounded-full ${barColor} transition-[width] duration-100`} style={{ width: `${boostFrac * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RunBar() {
+  const progress = useGame((s) => s.hud.progress);
+  const time = useGame((s) => s.hud.time);
+  const section = useGame((s) => s.hud.section);
+  const runWheels = useGame((s) => s.hud.runWheels);
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-4 w-[min(560px,60vw)] -translate-x-1/2">
+      <div className="panel px-4 py-2">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="font-display text-sm text-gold">{section}</span>
+          <span className="font-display text-xl tabular-nums">{fmtTime(time)}</span>
+          <span className="flex items-center gap-1 font-display text-sm text-gold">
+            +{runWheels} <WheelIcon className="h-4 w-4" />
+          </span>
+        </div>
+        <div className="relative h-2.5 rounded-full bg-panel-foreground/10">
+          <div className="h-full rounded-full bg-hot" style={{ width: `${progress * 100}%` }} />
+          <div
+            className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-panel-foreground bg-hot"
+            style={{ left: `${progress * 100}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Popups() {
+  const popups = useGame((s) => s.popups);
+  const tone = { gold: "text-gold", hot: "text-hot", cool: "text-cool", bad: "text-bad" } as const;
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-[22%] flex -translate-x-1/2 flex-col items-center gap-1">
+      {popups.map((p) => (
+        <div key={p.id} className="animate-pop-rise text-center">
+          <div className={`font-display text-4xl md:text-5xl ${tone[p.tone]} text-outline`}>{p.text}</div>
+          {p.sub && <div className="font-display text-lg text-panel-foreground text-outline">{p.sub}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Controls() {
+  const mode = useGame((s) => s.mode);
+  const rows =
+    mode === "run"
+      ? [
+          ["W A S D", "Drive / steer"],
+          ["SHIFT", "Boost"],
+          ["SPACE", "Hop"],
+          ["AIR: W/S", "Flip"],
+          ["AIR: A/D", "Spin"],
+          ["AIR: Q/E", "Roll"],
+          ["R", "Back to lobby"],
+        ]
+      : [
+          ["W A S D", "Drive"],
+          ["SHIFT", "Boost"],
+          ["SPACE", "Hop"],
+          ["ESC", "Settings"],
+        ];
+  return (
+    <div className="pointer-events-none absolute bottom-5 left-5 hidden md:block">
+      <div className="panel px-3 py-2 text-xs">
+        {rows.map(([key, what]) => (
+          <div key={key} className="flex items-center gap-2 py-0.5">
+            <span className="min-w-16 rounded-md bg-panel-foreground/15 px-1.5 py-0.5 text-center font-display text-[10px]">{key}</span>
+            <span className="opacity-85">{what}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Hint() {
+  const hint = useGame((s) => s.hint);
+  const mode = useGame((s) => s.mode);
+  if (!hint || mode !== "hub") return null;
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2">
+      <div className="panel animate-fade-in px-5 py-2.5 font-display text-lg text-gold">{hint}</div>
+    </div>
+  );
+}
+
+function SpeedLines() {
+  const speed = useGame((s) => s.hud.speed);
+  const boost = useGame((s) => s.hud.boostState === "active");
+  const enabled = useSave((s) => s.settings.speedLines);
+  const mode = useGame((s) => s.mode);
+  if (!enabled || mode === "menu" || mode === "title") return null;
+  const o = boost ? 0.9 : Math.max(0, (speed - 40) / 30) * 0.6;
+  if (o <= 0.02) return null;
+  return <div className="speed-lines pointer-events-none absolute inset-0" style={{ opacity: o }} />;
+}
+
+function TitleScreen() {
+  const setMode = useGame((s) => s.setMode);
+  const wheels = useSave((s) => s.wheels);
+  const runs = useSave((s) => s.runs);
+  const start = () => {
+    audio.init();
+    audio.play("buy");
+    setMode("hub");
+  };
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (e.code === "Enter" || e.code === "Space") start();
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  });
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-transparent via-transparent to-panel/60">
+      <div className="animate-title-bob text-center">
+        <div className="font-display text-sm tracking-[0.4em] text-panel-foreground text-outline">A DOWNHILL CAR GAME</div>
+        <h1 className="font-display text-7xl leading-[0.9] text-gold text-outline md:text-9xl">
+          SEND
+          <br />
+          <span className="text-hot">IT</span> DOWN
+        </h1>
+      </div>
+      <p className="mt-6 max-w-md text-center text-lg font-medium text-panel-foreground text-outline">
+        Roll out of the lobby, drop down the concrete mountain, hit ramps, loops and boost pads, and stack tricks for
+        wheels.
+      </p>
+      <button className="btn-game btn-hot mt-8 px-10 py-4 text-3xl" onClick={start}>
+        PLAY
+      </button>
+      {(wheels > 0 || runs > 0) && (
+        <div className="mt-4 flex items-center gap-2 font-display text-panel-foreground text-outline">
+          Welcome back · <WheelIcon className="h-5 w-5" /> {wheels.toLocaleString()}
+        </div>
+      )}
+      <div className="absolute bottom-4 text-xs text-panel-foreground/80 text-outline">
+        Car models by Kenney (CC0) · Best with keyboard
+      </div>
+    </div>
+  );
+}
+
+function FinishPanel() {
+  const f = useGame((s) => s.finish);
+  const best = useSave((s) => s.best);
+  if (!f) return null;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-panel/30">
+      <div className="panel animate-scale-in w-[min(440px,92vw)] p-7 text-center">
+        <div className="font-display text-5xl text-gold text-outline">FINISH!</div>
+        {f.isBest && <div className="mt-1 font-display text-hot">NEW PERSONAL BEST</div>}
+        <div className="mt-5 grid grid-cols-2 gap-3 text-left">
+          <Stat label="Time" value={fmtTime(f.time)} />
+          <Stat label="Best" value={best ? fmtTime(best) : "—"} />
+          <Stat label="Tricks" value={String(f.tricks)} />
+          <Stat label="Best combo" value={`x${f.bestCombo.toFixed(1)}`} />
+        </div>
+        <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-gold/15 py-3 font-display text-2xl text-gold">
+          +{f.wheels} <WheelIcon className="h-7 w-7" />
+        </div>
+        <div className="mt-1 text-xs opacity-70">includes +{f.bonus} finish & speed bonus</div>
+        <button className="btn-game btn-hot mt-6 w-full py-3 text-xl" onClick={() => returnToLobby()}>
+          BACK TO LOBBY
+        </button>
+        <div className="mt-2 text-xs opacity-60">or press Enter</div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-panel-foreground/10 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-wider opacity-70">{label}</div>
+      <div className="font-display text-xl">{value}</div>
+    </div>
+  );
+}
+
+export function HUD() {
+  const mode = useGame((s) => s.mode);
+  const settingsOpen = useGame((s) => s.settingsOpen);
+  return (
+    <div className="pointer-events-none absolute inset-0 font-sans text-panel-foreground">
+      <SpeedLines />
+      {mode === "title" ? (
+        <div className="pointer-events-auto absolute inset-0">
+          <TitleScreen />
+        </div>
+      ) : (
+        <>
+          <TopBar />
+          {(mode === "hub" || mode === "run") && (
+            <>
+              <Speedo />
+              <Controls />
+            </>
+          )}
+          {mode === "run" && <RunBar />}
+          <Hint />
+          <Popups />
+          {mode === "menu" && (
+            <div className="pointer-events-auto">
+              <MenuPanel />
+            </div>
+          )}
+          {mode === "finished" && (
+            <div className="pointer-events-auto">
+              <FinishPanel />
+            </div>
+          )}
+        </>
+      )}
+      {settingsOpen && (
+        <div className="pointer-events-auto">
+          <SettingsModal />
+        </div>
+      )}
+    </div>
+  );
+}
