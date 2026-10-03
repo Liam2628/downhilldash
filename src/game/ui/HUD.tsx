@@ -5,7 +5,10 @@ import { returnToLobby } from "../physics";
 import { WheelIcon } from "./WheelIcon";
 import { MenuPanel } from "./Menus";
 import { SettingsModal } from "./Settings";
-import { Settings2, Volume2, VolumeX } from "lucide-react";
+import { Settings2, Volume2, VolumeX, X, Zap } from "lucide-react";
+import { keyLabel, virtual } from "../input";
+import type { Action } from "../store";
+import { DailyChest } from "./DailyChest";
 
 function fmtTime(t: number) {
   const m = Math.floor(t / 60);
@@ -22,7 +25,7 @@ function WheelCounter() {
     prev.current = wheels;
   }, [wheels]);
   return (
-    <div className="panel flex items-center gap-2 px-3 py-1.5">
+    <div className="hud-chip flex items-center gap-2 px-3 py-1.5">
       <span key={bump} className="animate-wheel-bump inline-flex">
         <WheelIcon className="h-8 w-8" />
       </span>
@@ -41,19 +44,19 @@ function TopBar() {
     <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4">
       <div className="pointer-events-auto flex items-center gap-3">
         <WheelCounter />
-        {showFps && <div className="panel px-2 py-1 font-mono text-xs">{fps} FPS</div>}
+        {showFps && <div className="hud-chip px-2 py-1 font-mono text-xs">{fps} FPS</div>}
       </div>
       <div className="pointer-events-auto flex gap-2">
         <button
           aria-label={muted ? "Unmute" : "Mute"}
-          className="btn-game btn-ghost panel !p-2.5"
+          className="hud-chip p-2.5"
           onClick={() => setSettings({ muted: !muted })}
         >
           {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         </button>
         <button
           aria-label="Settings"
-          className="btn-game btn-ghost panel !p-2.5"
+          className="hud-chip p-2.5"
           onClick={() => {
             audio.play("ui");
             setSettingsOpen(true);
@@ -73,7 +76,7 @@ function Speedo() {
   const boostState = useGame((s) => s.hud.boostState);
   const boostFrac = useGame((s) => s.hud.boostFrac);
   const combo = useGame((s) => s.hud.combo);
-  const label = boostState === "ready" ? "BOOST READY · SHIFT" : boostState === "active" ? "BOOSTING!" : "COOLING DOWN";
+  const label = boostState === "ready" ? "BOOST READY" : boostState === "active" ? "BOOSTING!" : "COOLING DOWN";
   const barColor = boostState === "ready" ? "bg-cool" : boostState === "active" ? "bg-hot" : "bg-panel-foreground/40";
   return (
     <div className="pointer-events-none absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2">
@@ -107,7 +110,7 @@ function RunBar() {
   const runWheels = useGame((s) => s.hud.runWheels);
   return (
     <div className="pointer-events-none absolute left-1/2 top-4 w-[min(560px,60vw)] -translate-x-1/2">
-      <div className="panel px-4 py-2">
+      <div className="hud-chip px-4 py-2">
         <div className="mb-1.5 flex items-center justify-between">
           <span className="font-display text-sm text-gold">{section}</span>
           <span className="font-display text-xl tabular-nums">{fmtTime(time)}</span>
@@ -144,28 +147,43 @@ function Popups() {
 
 function Controls() {
   const mode = useGame((s) => s.mode);
-  const rows =
+  const hidden = useSave((s) => s.settings.hideControls);
+  const keysB = useSave((s) => s.settings.keys);
+  const setSettings = useSave((s) => s.setSettings);
+  if (hidden) return null;
+  const kb = (a: Action) => keysB[a].map(keyLabel).join(" / ") || "—";
+  const drive = `${kb("up")} ${kb("left")} ${kb("down")} ${kb("right")}`;
+  const rows: [string, string][] =
     mode === "run"
       ? [
-          ["W A S D", "Drive / steer"],
-          ["SHIFT", "Boost"],
-          ["SPACE", "Hop"],
-          ["AIR: W/S", "Flip"],
-          ["AIR: A/D", "Spin"],
-          ["AIR: Q/E", "Roll"],
-          ["R", "Back to lobby"],
+          [drive, "Drive / steer"],
+          [kb("boost"), "Boost"],
+          ["AIR: " + kb("up") + "/" + kb("down"), "Flip"],
+          ["AIR: " + kb("left") + "/" + kb("right"), "Spin"],
+          ["AIR: " + kb("rollL") + "/" + kb("rollR"), "Roll"],
+          ["SPACE / R", "Back to lobby"],
         ]
       : [
-          ["W A S D", "Drive"],
-          ["SHIFT", "Boost"],
-          ["SPACE", "Hop"],
+          [drive, "Drive"],
+          [kb("boost"), "Boost"],
           ["ESC", "Settings"],
         ];
   return (
-    <div className="pointer-events-none absolute bottom-5 left-5 hidden md:block">
-      <div className="panel px-3 py-2 text-xs">
+    <div className="pointer-events-auto absolute bottom-5 left-5 hidden md:block">
+      <div className="panel relative px-3 py-2 pr-8 text-xs">
+        <button
+          aria-label="Hide controls"
+          title="Hide controls (turn back on in Settings)"
+          className="absolute right-1.5 top-1.5 rounded-md p-1 opacity-70 hover:bg-panel-foreground/15 hover:opacity-100"
+          onClick={() => {
+            audio.play("ui");
+            setSettings({ hideControls: true });
+          }}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
         {rows.map(([key, what]) => (
-          <div key={key} className="flex items-center gap-2 py-0.5">
+          <div key={what} className="flex items-center gap-2 py-0.5">
             <span className="min-w-16 rounded-md bg-panel-foreground/15 px-1.5 py-0.5 text-center font-display text-[10px]">{key}</span>
             <span className="opacity-85">{what}</span>
           </div>
@@ -175,13 +193,39 @@ function Controls() {
   );
 }
 
+function BoostButton() {
+  const boostState = useGame((s) => s.hud.boostState);
+  const boostFrac = useGame((s) => s.hud.boostFrac);
+  const release = () => (virtual.boost = false);
+  const ready = boostState === "ready";
+  return (
+    <button
+      aria-label="Boost"
+      className={`pointer-events-auto absolute bottom-6 right-6 flex h-24 w-24 select-none flex-col items-center justify-center rounded-full border-4 font-display text-lg shadow-[var(--shadow-chunky)] transition-transform active:translate-y-1 ${
+        ready ? "border-panel-foreground bg-hot text-primary-foreground" : boostState === "active" ? "border-gold bg-gold text-gold-foreground" : "border-panel-border bg-panel text-panel-foreground/70"
+      }`}
+      style={{ touchAction: "none" }}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        virtual.boost = true;
+      }}
+      onPointerUp={release}
+      onPointerLeave={release}
+      onPointerCancel={release}
+    >
+      <Zap className="h-8 w-8" />
+      <span className="text-xs">{ready ? "BOOST" : boostState === "active" ? "GO!" : `${Math.round(boostFrac * 100)}%`}</span>
+    </button>
+  );
+}
+
 function Hint() {
   const hint = useGame((s) => s.hint);
   const mode = useGame((s) => s.mode);
   if (!hint || mode !== "hub") return null;
   return (
     <div className="pointer-events-none absolute left-1/2 top-24 -translate-x-1/2">
-      <div className="panel animate-fade-in px-5 py-2.5 font-display text-lg text-gold">{hint}</div>
+      <div className="hud-chip animate-fade-in px-5 py-2.5 font-display text-lg text-gold">{hint}</div>
     </div>
   );
 }
@@ -264,7 +308,7 @@ function FinishPanel() {
         <button className="btn-game btn-hot mt-6 w-full py-3 text-xl" onClick={() => returnToLobby()}>
           BACK TO LOBBY
         </button>
-        <div className="mt-2 text-xs opacity-60">or press Enter</div>
+        <div className="mt-2 text-xs opacity-60">or press Enter / Space</div>
       </div>
     </div>
   );
@@ -282,6 +326,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export function HUD() {
   const mode = useGame((s) => s.mode);
   const settingsOpen = useGame((s) => s.settingsOpen);
+  const chestOpen = useGame((s) => s.chestOpen);
   return (
     <div className="pointer-events-none absolute inset-0 font-sans text-panel-foreground">
       <SpeedLines />
@@ -296,6 +341,7 @@ export function HUD() {
             <>
               <Speedo />
               <Controls />
+              <BoostButton />
             </>
           )}
           {mode === "run" && <RunBar />}
@@ -312,6 +358,11 @@ export function HUD() {
             </div>
           )}
         </>
+      )}
+      {chestOpen && (
+        <div className="pointer-events-auto">
+          <DailyChest />
+        </div>
       )}
       {settingsOpen && (
         <div className="pointer-events-auto">

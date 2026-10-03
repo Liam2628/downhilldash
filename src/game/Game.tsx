@@ -5,7 +5,7 @@ import { Hub } from "./Hub";
 import { Track } from "./Track";
 import { Player } from "./Player";
 import { HUD } from "./ui/HUD";
-import { bindInput, orbit } from "./input";
+import { bindInput, orbit, rebinding } from "./input";
 import { useGame, useSave } from "./store";
 import { audio } from "./audio";
 import { exitMenu, returnToLobby } from "./physics";
@@ -35,17 +35,27 @@ export function Game() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const g = useGame.getState();
+      if (rebinding.active) return;
       if (e.code === "Escape") {
+        if (g.chestOpen) {
+          g.setChestOpen(false);
+          return;
+        }
         if (g.settingsOpen) g.setSettingsOpen(false);
         else if (g.mode === "menu") exitMenu();
         else if (g.mode !== "title") g.setSettingsOpen(true);
       }
-      if (e.code === "KeyR" && (g.mode === "run" || g.mode === "hub") && !g.settingsOpen) {
+      if (e.code === "KeyR" && (g.mode === "run" || g.mode === "hub") && !g.settingsOpen && !g.chestOpen && !rebinding.active) {
         returnToLobby();
         g.popup("BACK TO LOBBY", "cool");
       }
+      if (e.code === "Space" && !g.settingsOpen && !g.chestOpen && (g.mode === "run" || g.mode === "finished")) {
+        e.preventDefault();
+        returnToLobby();
+        if (g.mode === "run") g.popup("BACK TO LOBBY", "cool");
+      }
       if (e.code === "Enter" && g.mode === "finished") returnToLobby();
-      if (e.code === "KeyM") {
+      if (e.code === "KeyM" && !rebinding.active) {
         const s = useSave.getState();
         s.setSettings({ muted: !s.settings.muted });
       }

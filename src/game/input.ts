@@ -49,3 +49,18 @@ export const k = {
 
 /** Orbit camera drag state for menu views */
 export const orbit = { yaw: 0, pitch: 0.28, dragging: false, lastX: 0, lastY: 0, idle: 0 };
+
+/** Human-readable label for a KeyboardEvent.code */
+export function keyLabel(code: string) {
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  const map: Record<string, string> = {
+    ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
+    ShiftLeft: "L-SHIFT", ShiftRight: "R-SHIFT", ControlLeft: "L-CTRL", ControlRight: "R-CTRL",
+    AltLeft: "L-ALT", AltRight: "R-ALT", Space: "SPACE", Enter: "ENTER", Tab: "TAB",
+  };
+  return map[code] ?? code.replace("Numpad", "NUM ").toUpperCase();
+}
+
+/** true while Settings is waiting for a key to rebind */
+export const rebinding = { active: false };

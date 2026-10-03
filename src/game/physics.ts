@@ -475,10 +475,32 @@ export function step(rawDt: number) {
   // ---------- solid obstacles: nothing passes through ----------
   const blockedBy = footprintBlocked(nx, nz, P.yaw, P.y);
   if (blockedBy) {
-    const kind: CrashKind = blockedBy === "barrier" ? "barrier" : blockedBy === "pillar" ? "metal" : "concrete";
-    impact(kind, Math.abs(P.speed), blockedBy === "barrier" ? "Hit a barrier" : blockedBy === "pillar" ? "Hit the loop pillar" : "Hit the side of a ramp");
-    nx = P.x;
-    nz = P.z;
+    // If we're already overlapping something (e.g. wedged between ramps), let the car move out.
+    const alreadyStuck = footprintBlocked(P.x, P.z, P.yaw, P.y) !== null;
+    if (!alreadyStuck) {
+      // Try sliding along one axis before stopping dead.
+      const slideZ = !footprintBlocked(P.x, nz, P.yaw, P.y);
+      const slideX = !footprintBlocked(nx, P.z, P.yaw, P.y);
+      const head = Math.abs(P.speed) > 17;
+      if (!head && (slideZ || slideX)) {
+        if (slideZ) nx = P.x;
+        else nz = P.z;
+        P.speed *= 0.97;
+        if (P.wallT <= 0 && Math.abs(P.speed) > 6) {
+          audio.crash("scrape", 0.5);
+          P.wallT = 0.35;
+        }
+      } else {
+        const kind: CrashKind = blockedBy === "barrier" ? "barrier" : blockedBy === "pillar" ? "metal" : "concrete";
+        impact(kind, Math.abs(P.speed), blockedBy === "barrier" ? "Hit a barrier" : blockedBy === "pillar" ? "Hit the loop pillar" : "Hit the side of a ramp");
+        nx = P.x;
+        nz = P.z;
+      }
+    } else if (blockedBy !== "pillar") {
+      // Unstick: lift onto whatever we're overlapping so the car isn't wedged.
+      const top = Math.max(groundAt(P.x, P.z), P.y);
+      P.y = Math.min(top + 0.4, P.y + 6 * dt);
+    }
   }
 
   const gNew = groundAt(nx, nz);
