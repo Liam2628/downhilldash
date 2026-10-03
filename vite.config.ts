@@ -15,7 +15,9 @@ const stripTsdSourceFromGame = {
   transform(code: string, id: string) {
     if (!/\/src\/(game|components)\/.*\.tsx(\?|$)/.test(id)) return;
     if (!code.includes("data-tsd-source")) return;
-    return { code: code.replace(/\s*data-tsd-source="[^"]*"/g, ""), map: null };
+    return { code: code
+      .replace(/\s*data-tsd-source="[^"]*"/g, "")
+      .replace(/"data-tsd-source":\s*"[^"]*",?\s*/g, ""), map: null };
   },
 };
 
