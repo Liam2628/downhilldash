@@ -109,6 +109,21 @@ export function surfaceY(s: number, x: number) {
   return hAt(s) + rampAdd(s, x - cAt(s));
 }
 
+export type SolidHit = { y: number; kind: "barrier" | "pillar" | null };
+/** Ground plus solid obstacles (barrier tops, loop pillars). */
+export function solidY(s: number, x: number): SolidHit {
+  const base = surfaceY(s, x);
+  if (s < 0) return { y: base, kind: null };
+  const dx = x - cAt(s);
+  for (const b of BARRIERS) {
+    if (Math.abs(s - b.s) < 0.75 && Math.abs(dx - b.xo) < b.w / 2) return { y: hAt(b.s) + 1.2, kind: "barrier" };
+  }
+  for (const lp of LOOPS) {
+    if (Math.abs(s - lp.s) < 0.6 && Math.abs(Math.abs(dx) - 9) < 0.6) return { y: base + 99, kind: "pillar" };
+  }
+  return { y: base, kind: null };
+}
+
 export const PADS: Pad[] = [
   { s: 130, xo: 0 },
   { s: 335, xo: 0 },
