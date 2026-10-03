@@ -61,3 +61,6 @@ export function keyLabel(code: string) {
   };
   return map[code] ?? code.replace("Numpad", "NUM ").toUpperCase();
 }
+
+/** true while Settings is waiting for a key to rebind */
+export const rebinding = { active: false };
