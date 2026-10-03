@@ -59,6 +59,17 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-hot: var(--hot);
+  --color-cool: var(--cool);
+  --color-bad: var(--bad);
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
+  --color-panel-border: var(--panel-border);
+  --color-sky: var(--sky);
+  --font-display: "Bungee", Impact, sans-serif;
+  --font-sans: "Rubik", system-ui, sans-serif;
 }
 
 :root {
@@ -95,6 +106,18 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --gold: oklch(0.84 0.17 85);
+  --gold-foreground: oklch(0.25 0.05 60);
+  --hot: oklch(0.7 0.21 40);
+  --cool: oklch(0.8 0.14 210);
+  --bad: oklch(0.63 0.24 25);
+  --panel: oklch(0.2 0.03 260 / 0.82);
+  --panel-foreground: oklch(0.97 0.01 90);
+  --panel-border: oklch(1 0 0 / 0.14);
+  --sky: oklch(0.85 0.07 230);
+  --primary: oklch(0.7 0.21 40);
+  --primary-foreground: oklch(0.99 0 0);
+  --shadow-chunky: 0 6px 0 oklch(0 0 0 / 0.35);
 }
 
 .dark {
@@ -142,3 +165,68 @@
     color: var(--color-foreground);
   }
 }
+
+@layer components {
+  .panel {
+    background: var(--panel);
+    color: var(--panel-foreground);
+    border: 2px solid var(--panel-border);
+    border-radius: 1.25rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 20px 50px -20px oklch(0 0 0 / 0.6);
+  }
+  .text-outline {
+    text-shadow:
+      0 3px 0 oklch(0 0 0 / 0.55),
+      0 0 18px oklch(0 0 0 / 0.25);
+  }
+  .btn-game {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+    border-radius: 0.9rem;
+    padding: 0.6rem 1.1rem;
+    box-shadow: var(--shadow-chunky);
+    transition: transform 0.08s, box-shadow 0.08s, filter 0.15s;
+  }
+  .btn-game:hover { filter: brightness(1.08); }
+  .btn-game:active { transform: translateY(4px); box-shadow: 0 2px 0 oklch(0 0 0 / 0.35); }
+  .btn-game:disabled { filter: grayscale(0.7) brightness(0.8); cursor: not-allowed; }
+  .btn-hot { background: var(--hot); color: var(--primary-foreground); }
+  .btn-gold { background: var(--gold); color: var(--gold-foreground); }
+  .btn-cool { background: var(--cool); color: oklch(0.2 0.05 240); }
+  .btn-ghost { background: oklch(1 0 0 / 0.1); color: var(--panel-foreground); }
+}
+
+@keyframes pop-rise {
+  0% { opacity: 0; transform: translateY(20px) scale(0.6); }
+  15% { opacity: 1; transform: translateY(0) scale(1.12); }
+  25% { transform: scale(1); }
+  80% { opacity: 1; transform: translateY(-20px); }
+  100% { opacity: 0; transform: translateY(-40px); }
+}
+.animate-pop-rise { animation: pop-rise 1.7s ease-out forwards; }
+
+@keyframes speedlines {
+  from { background-position: 0 0; }
+  to { background-position: 0 400px; }
+}
+.speed-lines {
+  background-image: repeating-conic-gradient(from 0deg at 50% 50%, oklch(1 0 0 / 0.35) 0deg 0.6deg, transparent 0.6deg 7deg);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 35%, black 75%);
+  animation: speedlines-spin 0.25s linear infinite;
+}
+@keyframes speedlines-spin {
+  from { transform: rotate(0deg) scale(1.4); }
+  to { transform: rotate(7deg) scale(1.4); }
+}
+@keyframes title-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(-1deg); }
+}
+.animate-title-bob { animation: title-bob 3s ease-in-out infinite; }
+@keyframes wheel-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.animate-wheel-bump { animation: wheel-bump 0.25s ease-out; }
