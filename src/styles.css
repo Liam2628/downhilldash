@@ -254,3 +254,9 @@
   100% { transform: scale(1); }
 }
 .animate-wheel-bump { animation: wheel-bump 0.25s ease-out; }
+@keyframes scale-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+.animate-scale-in { animation: scale-in 0.2s ease-out; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: fade-in 0.25s ease-out; }
+@keyframes pop-in { 0% { opacity: 0; transform: translateY(30px) scale(0.4); } 60% { opacity: 1; transform: translateY(-10px) scale(1.15); } 100% { transform: translateY(0) scale(1); } }
+.animate-pop-in { animation: pop-in 0.6s ease-out both; }
