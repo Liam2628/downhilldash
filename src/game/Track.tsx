@@ -96,21 +96,6 @@ function Road() {
 }
 
 function Walls() {
-  const geos = useMemo(() => {
-    const out: THREE.BufferGeometry[] = [];
-    for (const side of [-1, 1]) {
-      const inner = side * HALF;
-      const outer = side * (HALF + 0.8);
-      const cols = side < 0 ? [outer, outer, inner, inner] : [inner, inner, outer, outer];
-      out.push(
-        stripGeometry(0, L + 4, 2, cols, (s, dx) => {
-          const i = cols.indexOf(dx);
-          return hAt(s) + 0.01 + (i === 1 || i === 2 ? 1.1 : 0);
-        }, 6),
-      );
-    }
-    return out;
-  }, []);
   // fix duplicate-column lookups: use explicit builder
   const fixed = useMemo(() => {
     return [-1, 1].map((side) => {
@@ -147,7 +132,6 @@ function Walls() {
       return g;
     });
   }, []);
-  void geos;
   const tex = kerbTexture();
   return (
     <>
@@ -332,6 +316,7 @@ function Coins() {
   const tire = useRef<THREE.InstancedMesh>(null);
   const hub = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const hubGeo = useMemo(() => new THREE.CylinderGeometry(0.42, 0.42, 0.2, 16).rotateX(Math.PI / 2), []);
   useFrame(({ clock }) => {
     if (!tire.current || !hub.current) return;
     const t = clock.elapsedTime;
@@ -354,17 +339,13 @@ function Coins() {
         <torusGeometry args={[0.55, 0.22, 10, 22]} />
         <meshStandardMaterial color="#1e1e22" roughness={0.6} />
       </instancedMesh>
-      <instancedMesh ref={hub} args={[undefined, undefined, COINS.length]} frustumCulled={false}>
-        <cylinderGeometry args={[0.42, 0.42, 0.2, 16]} />
+      <instancedMesh ref={hub} args={[hubGeo, undefined, COINS.length]} frustumCulled={false}>
         <meshStandardMaterial color="#ffc21a" emissive="#b07800" emissiveIntensity={0.7} metalness={0.8} roughness={0.25} />
       </instancedMesh>
     </>
   );
 }
 
-// rotate cylinder hub to face sideways like a wheel
-function useHubRotationFix() {}
-void useHubRotationFix;
 
 function Cones() {
   const body = useRef<THREE.InstancedMesh>(null);
