@@ -1,4 +1,4 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, type ThreeElements } from "@react-three/fiber";
 import { Clone, useGLTF } from "@react-three/drei";
 import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -52,7 +52,7 @@ function Ground() {
   );
 }
 
-function Sign({ text, sub, w, h, bg, border, ...props }: { text: string; sub?: string; w: number; h: number; bg: string; border: string } & JSX.IntrinsicElements["group"]) {
+function Sign({ text, sub, w, h, bg, border, ...props }: { text: string; sub?: string; w: number; h: number; bg: string; border: string } & ThreeElements["group"]) {
   const tex = signTexture(text, { sub, bg, border });
   return (
     <group {...props}>
