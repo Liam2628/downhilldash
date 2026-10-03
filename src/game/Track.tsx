@@ -354,23 +354,11 @@ function Cones() {
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
     if (!body.current || !stripe.current) return;
-    for (let i = 0; i < CONES.length; i++) {
-      const cn = CONES[i];
+    for (let i = 0; i < runState.cones.length; i++) {
       const st = runState.cones[i];
-      if (st.hit) {
-        st.vy -= 30 * dt;
-        st.x += st.vx * dt;
-        st.y += st.vy * dt;
-        st.z += st.vz * dt;
-        st.r += dt * 12;
-        dummy.position.set(st.x, st.y, st.z);
-        dummy.rotation.set(st.r, st.r * 0.6, 0);
-        dummy.scale.setScalar(st.y < hAt(-st.z) - 20 ? 0 : 1);
-      } else {
-        dummy.position.set(cAt(cn.s) + cn.xo, hAt(cn.s), -cn.s);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(1);
-      }
+      dummy.position.set(st.x, st.y, st.z);
+      dummy.rotation.set(st.tilt, st.rot, 0, "YXZ");
+      dummy.scale.setScalar(1);
       dummy.updateMatrix();
       body.current.setMatrixAt(i, dummy.matrix);
       stripe.current.setMatrixAt(i, dummy.matrix);
@@ -382,10 +370,10 @@ function Cones() {
   const stripeGeo = useMemo(() => new THREE.CylinderGeometry(0.25, 0.32, 0.22, 14).translate(0, 0.6, 0), []);
   return (
     <>
-      <instancedMesh ref={body} args={[coneGeo, undefined, CONES.length]} castShadow frustumCulled={false}>
+      <instancedMesh ref={body} args={[coneGeo, undefined, runState.cones.length]} castShadow frustumCulled={false}>
         <meshStandardMaterial color="#ff6a13" roughness={0.5} />
       </instancedMesh>
-      <instancedMesh ref={stripe} args={[stripeGeo, undefined, CONES.length]} frustumCulled={false}>
+      <instancedMesh ref={stripe} args={[stripeGeo, undefined, runState.cones.length]} frustumCulled={false}>
         <meshStandardMaterial color="#ffffff" roughness={0.4} />
       </instancedMesh>
     </>
