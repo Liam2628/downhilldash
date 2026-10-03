@@ -45,3 +45,27 @@ export const HUB_BOUNDS = { minX: -68, maxX: 68, minZ: 0, maxZ: 98 };
 export const DAILY_PAD = { x: -18, z: 62, r: 3.2 };
 export const STATS_BOARD = { x: 20, z: 64 };
 export const GATE_HALF = 10;
+
+/** Solid round obstacles in the lobby: x, z, radius, kind */
+export const HUB_SOLIDS: { x: number; z: number; r: number; kind: "metal" | "wood" | "tree" | "concrete" }[] = [
+  { x: -GATE_HALF - 1.5, z: 2, r: 1.3, kind: "concrete" },
+  { x: GATE_HALF + 1.5, z: 2, r: 1.3, kind: "concrete" },
+  { x: -58, z: 80, r: 2.4, kind: "metal" },
+  { x: 58, z: 82, r: 2.6, kind: "metal" },
+  { x: 52, z: 8, r: 2.4, kind: "metal" },
+  { x: -52, z: 52, r: 1.4, kind: "wood" },
+  { x: -50, z: 54, r: 1.4, kind: "wood" },
+  { x: -51, z: 50.5, r: 1.4, kind: "wood" },
+  { x: 20, z: 64, r: 3.2, kind: "wood" },
+  { x: -18, z: 62 - 4.2, r: 0.6, kind: "metal" },
+  { x: -56, z: 70, r: 0.9, kind: "tree" },
+  { x: 56, z: 70, r: 0.9, kind: "tree" },
+  { x: -56, z: 10, r: 0.9, kind: "tree" },
+  { x: 56, z: 10, r: 0.9, kind: "tree" },
+  { x: -22, z: 90, r: 0.9, kind: "tree" },
+  { x: 22, z: 90, r: 0.9, kind: "tree" },
+];
+
+export const HUB_CONES: [number, number][] = [
+  [-24, 22], [-24, 26], [-24, 42], [-24, 46], [24, 22], [24, 26], [24, 42], [24, 46], [-8, 60], [8, 60],
+];
