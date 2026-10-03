@@ -1,6 +1,8 @@
 // Tiny procedural WebAudio sound engine — no files needed.
 type Sfx = "coin" | "trick" | "land" | "crash" | "boost" | "ui" | "buy" | "loop" | "pad" | "cone" | "wall" | "deny" | "finish";
 
+export type CrashKind = "wall" | "barrier" | "metal" | "concrete" | "wood" | "glass" | "landing" | "roof" | "scrape";
+
 class AudioEngine {
   ctx: AudioContext | null = null;
   master: GainNode | null = null;
@@ -71,11 +73,30 @@ class AudioEngine {
     if (this.master) this.master.gain.value = this.muted ? 0 : this.volume * 0.6;
   }
 
-  engine(speed01: number, boosting: boolean, active: boolean) {
+  crash(kind: CrashKind, intensity: number) {
+    if (!this.ctx) return;
+    const v = 0.2 + intensity * 0.6;
+    if (kind === "scrape") { this.noise(0.25, v * 0.4, 4000); return; }
+    const low = kind === "wood" ? 500 : kind === "concrete" || kind === "wall" || kind === "barrier" ? 900 : 2200;
+    this.noise(0.3 + intensity * 0.5, v, low);
+    this.tone(kind === "wood" ? 140 : 90, 0.3, "sine", v * 0.5, 40);
+    if (kind === "metal" || kind === "roof" || kind === "landing")
+      [1230, 1870, 2650].forEach((f, i) => this.tone(f * (0.9 + Math.random() * 0.2), 0.25, "square", v * 0.05, f * 0.6, i * 0.03));
+    if (kind === "glass" || intensity > 0.7)
+      for (let i = 0; i < 6; i++) this.tone(3000 + Math.random() * 3000, 0.12, "sine", 0.04, undefined, 0.05 + i * 0.04);
+  }
+
+  land(intensity: number) {
+    this.noise(0.15 + intensity * 0.15, 0.2 + intensity * 0.4, 300);
+    this.tone(90, 0.15, "sine", 0.2 + intensity * 0.2, 50);
+  }
+
+  engine(speed01: number, boosting: boolean, active: boolean, electric = false) {
     if (!this.ctx || !this.engOsc || !this.engOsc2 || !this.engGain || !this.engFilter || !this.windGain) return;
     const t = this.ctx.currentTime;
     const f = 48 + speed01 * 140 + (boosting ? 40 : 0);
-    this.engOsc.frequency.setTargetAtTime(f, t, 0.08);
+    this.engOsc.type = electric ? "sine" : "sawtooth";
+    this.engOsc.frequency.setTargetAtTime(electric ? f * 4 : f, t, 0.08);
     this.engOsc2.frequency.setTargetAtTime(f * 0.5, t, 0.08);
     this.engFilter.frequency.setTargetAtTime(400 + speed01 * 1400 + (boosting ? 900 : 0), t, 0.1);
     this.engGain.gain.setTargetAtTime(active ? 0.05 + speed01 * 0.05 : 0, t, 0.15);
