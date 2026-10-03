@@ -11,6 +11,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 const stripTsdSourceFromGame = {
   name: "strip-tsd-source-r3f",
   apply: "serve" as const,
+  enforce: "post" as const,
   transform(code: string, id: string) {
     if (!/\/src\/(game|components)\/.*\.tsx(\?|$)/.test(id)) return;
     if (!code.includes("data-tsd-source")) return;
