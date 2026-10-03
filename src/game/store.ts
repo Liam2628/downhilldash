@@ -11,6 +11,20 @@ export type Settings = {
   units: "kmh" | "mph";
   showFps: boolean;
   speedLines: boolean;
+  hideControls: boolean;
+  keys: KeyBinds;
+};
+
+export type Action = "up" | "down" | "left" | "right" | "boost" | "rollL" | "rollR";
+export type KeyBinds = Record<Action, string[]>;
+export const DEFAULT_KEYS: KeyBinds = {
+  up: ["KeyW", "ArrowUp"],
+  down: ["KeyS", "ArrowDown"],
+  left: ["KeyA", "ArrowLeft"],
+  right: ["KeyD", "ArrowRight"],
+  boost: ["ShiftLeft", "ShiftRight"],
+  rollL: ["KeyQ"],
+  rollR: ["KeyE"],
 };
 
 type Save = {
@@ -66,6 +80,8 @@ const initial: Save = {
     units: "kmh",
     showFps: false,
     speedLines: true,
+    hideControls: false,
+    keys: DEFAULT_KEYS,
   },
   best: null,
   bestTricks: 0,
@@ -133,7 +149,11 @@ export const useSave = create<Save & SaveActions>()(
           ...current,
           ...p,
           upgrades: { ...initial.upgrades, ...(p.upgrades ?? {}) },
-          settings: { ...initial.settings, ...(p.settings ?? {}) },
+          settings: {
+            ...initial.settings,
+            ...(p.settings ?? {}),
+            keys: { ...DEFAULT_KEYS, ...(p.settings?.keys ?? {}) },
+          },
         };
       },
     },
@@ -171,6 +191,8 @@ type GameState = {
   menu: MenuId | null;
   preview: string | null;
   settingsOpen: boolean;
+  chestOpen: boolean;
+  setChestOpen: (v: boolean) => void;
   hud: Hud;
   popups: Popup[];
   finish: FinishResult | null;
@@ -194,6 +216,8 @@ export const useGame = create<GameState>()((set, get) => ({
   menu: null,
   preview: null,
   settingsOpen: false,
+  chestOpen: false,
+  setChestOpen: (v) => set({ chestOpen: v }),
   hud: {
     speed: 0,
     boostState: "ready",

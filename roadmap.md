@@ -1,0 +1,16 @@
+# Roadmap
+- [ ] On-screen boost button
+- [ ] Controls card closable forever; Settings > Controls with rebindable keys
+- [ ] Real crashes (hard impacts), crash sounds by impact type/surface
+- [ ] Coins look like real wheels
+- [ ] Solid collisions: no passing through objects (incl. landing on them); cones pushable
+- [ ] Air control while on ramps
+- [ ] Silent autosave (localStorage)
+- [ ] Remove Space jump
+- [ ] 2-3 electric cars
+- [ ] Top-bar style unified across top of screen
+- [ ] Remove checkered flag at finish
+- [ ] Instant camera snap on return to lobby
+- [ ] Finish texturing; remove lamp posts; fix stats board wood layout
+- [ ] Daily Rewards: readable from all sides, chest popup w/ blur, weighted 100-1500 (usually 130-250)
+- [ ] Pause menu stops the game

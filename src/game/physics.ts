@@ -1,7 +1,6 @@
 import { carById, type CarStats } from "./data";
 import { useGame, useSave } from "./store";
 import {
-  BARRIERS,
   CONES,
   COINS,
   FINISH,
@@ -13,12 +12,12 @@ import {
   hAt,
   roadYaw,
   sectionAt,
-  surfaceY,
+  solidY,
   type Loop,
 } from "./track";
-import { DAILY_PAD, GATE_HALF, HUB_BOUNDS, HUB_BUILDINGS, SPAWN } from "./hub";
+import { DAILY_PAD, GATE_HALF, HUB_BOUNDS, HUB_BUILDINGS, HUB_CONES, HUB_SOLIDS, SPAWN } from "./hub";
 import { k } from "./input";
-import { audio } from "./audio";
+import { audio, type CrashKind } from "./audio";
 
 const G = 30;
 const TAU = Math.PI * 2;
@@ -53,25 +52,45 @@ export const P = {
   runWheels: 0,
   runTricks: 0,
   lastS: -SPAWN.z,
-  jumpHeld: false,
   boostHeld: false,
   steer: 0,
   wallT: 0,
+  hitT: 0,
   topEff: 40,
   boosting: false,
   landFlash: 0,
+  snapCam: true,
+  shake: 0,
+  electric: false,
 };
 
-export type ConeState = { hit: boolean; x: number; y: number; z: number; vx: number; vy: number; vz: number; r: number };
+export type ConeState = { x: number; y: number; z: number; vx: number; vz: number; rot: number; tilt: number; home: [number, number] };
+function makeCones(): ConeState[] {
+  const out: ConeState[] = [];
+  for (const cn of CONES) {
+    const x = cAt(cn.s) + cn.xo;
+    out.push({ x, y: hAt(cn.s), z: -cn.s, vx: 0, vz: 0, rot: 0, tilt: 0, home: [x, -cn.s] });
+  }
+  for (const [x, z] of HUB_CONES) out.push({ x, y: 0, z, vx: 0, vz: 0, rot: 0, tilt: 0, home: [x, z] });
+  return out;
+}
+
 export const runState = {
   collected: new Uint8Array(COINS.length),
-  cones: CONES.map(() => ({ hit: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, r: 0 }) as ConeState),
+  cones: makeCones(),
   version: 0,
 };
 
 export function resetRun() {
   runState.collected.fill(0);
-  runState.cones.forEach((c) => (c.hit = false));
+  // put the track cones back (hub cones stay where you pushed them)
+  for (let i = 0; i < CONES.length; i++) {
+    const c = runState.cones[i];
+    c.x = c.home[0];
+    c.z = c.home[1];
+    c.vx = c.vz = 0;
+    c.tilt = 0;
+  }
   runState.version++;
   P.runTime = 0;
   P.runWheels = 0;
@@ -91,7 +110,7 @@ function resetAir() {
 export function teleport(x: number, z: number, yaw: number) {
   P.x = x;
   P.z = z;
-  P.y = surfaceY(-z, x);
+  P.y = solidY(-z, x).y;
   P.yaw = yaw;
   P.speed = 0;
   P.vy = 0;
@@ -99,6 +118,8 @@ export function teleport(x: number, z: number, yaw: number) {
   P.loop = null;
   P.wipe = 0;
   P.wipeSpin = 0;
+  P.pitch = 0;
+  P.roll = 0;
   P.lastS = -z;
   resetAir();
 }
@@ -107,6 +128,7 @@ export function returnToLobby() {
   teleport(SPAWN.x, SPAWN.z, SPAWN.yaw);
   P.boostT = 0;
   P.cooldownT = 0;
+  P.snapCam = true;
   const g = useGame.getState();
   g.setFinish(null);
   g.setMode("hub");
@@ -117,15 +139,18 @@ export function exitMenu() {
   const b = HUB_BUILDINGS.find((h) => h.id === g.menu);
   g.closeMenu();
   if (b) teleport(b.exit.x, b.exit.z, b.exit.yaw);
+  P.snapCam = true;
 }
 
 export function currentStats() {
   const s = useSave.getState();
-  const base: CarStats = carById(s.selected).stats;
+  const def = carById(s.selected);
+  const base: CarStats = def.stats;
   const u = s.upgrades;
   const eng = 1 + 0.04 * u.engine;
   return {
     ...base,
+    electric: !!def.electric,
     top: base.top * eng,
     accel: base.accel * eng,
     handling: base.handling * (1 + 0.07 * u.grip),
@@ -135,14 +160,11 @@ export function currentStats() {
   };
 }
 
-const wrap = (a: number) => {
-  a = ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
-  return a;
-};
+const wrap = (a: number) => (((a + Math.PI) % TAU) + TAU) % TAU - Math.PI;
 const lerpAngle = (a: number, b: number, t: number) => a + wrap(b - a) * t;
 
 export function groundAt(x: number, z: number) {
-  return surfaceY(-z, x);
+  return solidY(-z, x).y;
 }
 
 function award(n: number) {
@@ -150,18 +172,34 @@ function award(n: number) {
   P.runWheels += n;
 }
 
-function wipeout(reason: string) {
-  P.wipe = 1.3;
-  P.speed *= 0.3;
+function wipeout(reason: string, kind: CrashKind, intensity: number) {
+  P.wipe = 1.4;
   P.combo = 1;
   P.comboT = 0;
+  P.shake = Math.min(1, 0.4 + intensity);
   resetAir();
-  audio.play("crash");
-  useGame.getState().popup("WIPEOUT!", "bad", reason);
+  audio.crash(kind, intensity);
+  useGame.getState().popup("CRASHED!", "bad", reason);
+}
+
+/** Impact handler: big hits crash you, small ones bump. */
+function impact(kind: CrashKind, impactSpeed: number, reason: string) {
+  if (P.hitT > 0) return;
+  P.hitT = 0.35;
+  const intensity = Math.min(1, impactSpeed / 45);
+  if (impactSpeed > 17 && P.wipe <= 0) {
+    wipeout(reason, kind, intensity);
+    P.speed = -Math.min(6, impactSpeed * 0.15);
+  } else {
+    audio.crash(kind, intensity * 0.5);
+    P.shake = Math.max(P.shake, intensity * 0.4);
+    P.speed = -P.speed * 0.25;
+  }
 }
 
 function land(gy: number, stats: ReturnType<typeof currentStats>) {
   const air = P.airT;
+  const impactV = -P.vy;
   P.y = gy;
   P.grounded = true;
   P.vy = 0;
@@ -173,18 +211,20 @@ function land(gy: number, stats: ReturnType<typeof currentStats>) {
   const spins = Math.floor((Math.abs(P.tYaw) + 0.9) / TAU);
   const flips = Math.floor((Math.abs(P.tPitch) + 0.9) / TAU);
   const rolls = Math.floor((Math.abs(P.tRoll) + 0.9) / TAU);
-  if (air > 0.25) audio.play("land");
   P.landFlash = Math.min(1, air);
 
   if (!clean && air > 0.3) {
-    wipeout("Stick the landing next time");
+    // how badly did we land? roof / side / nose
+    const kind: CrashKind = pErr > 2.2 || rErr > 2.2 ? "roof" : "landing";
+    wipeout(kind === "roof" ? "Landed on the roof!" : "Stick the landing next time", kind, Math.min(1, 0.4 + impactV / 30));
+    P.speed *= 0.3;
     return;
   }
+  if (air > 0.25) audio.land(Math.min(1, impactV / 25));
   const parts: string[] = [];
   let base = 0;
   if (flips) {
-    const name = P.tPitch < 0 ? "BACKFLIP" : "FRONTFLIP";
-    parts.push((flips > 1 ? `${flips}x ` : "") + name);
+    parts.push((flips > 1 ? `${flips}x ` : "") + (P.tPitch < 0 ? "BACKFLIP" : "FRONTFLIP"));
     base += flips * 18;
   }
   if (spins) {
@@ -215,7 +255,7 @@ function land(gy: number, stats: ReturnType<typeof currentStats>) {
   resetAir();
 }
 
-function todayKey() {
+export function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
@@ -224,6 +264,28 @@ let hudAcc = 0;
 let fpsAcc = 0;
 let fpsFrames = 0;
 let fps = 0;
+let dailyArmed = true;
+
+/** car footprint sample points (relative to center): front corners, front, rear corners */
+const FOOT: [number, number][] = [
+  [2.0, 0],
+  [1.9, 0.85],
+  [1.9, -0.85],
+  [-1.9, 0.85],
+  [-1.9, -0.85],
+];
+
+function footprintBlocked(x: number, z: number, yaw: number, y: number) {
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  for (const [f, r] of FOOT) {
+    const px = x + fx * f + fz * r;
+    const pz = z + fz * f - fx * r;
+    const h = solidY(-pz, px);
+    if (h.y > y + 0.7) return h.kind ?? "concrete";
+  }
+  return null;
+}
 
 export function step(rawDt: number) {
   const dt = Math.min(rawDt, 0.05);
@@ -238,18 +300,27 @@ export function step(rawDt: number) {
     fpsFrames = 0;
   }
 
+  // paused
+  if (game.settingsOpen || game.chestOpen) {
+    audio.engine(0, false, false, P.electric);
+    return;
+  }
+
   if (mode === "title" || mode === "menu") {
     P.speed = 0;
-    audio.engine(0, false, mode === "menu");
+    audio.engine(0, false, false, P.electric);
     publish(dt, mode);
     return;
   }
 
   const stats = currentStats();
-  const controls = (mode === "hub" || mode === "run") && P.wipe <= 0 && !game.settingsOpen;
+  P.electric = stats.electric;
+  const controls = (mode === "hub" || mode === "run") && P.wipe <= 0;
   P.cooldownMax = stats.cooldown;
   P.boostMax = stats.boostDur;
   P.landFlash = Math.max(0, P.landFlash - dt * 2);
+  P.shake = Math.max(0, P.shake - dt * 2);
+  P.hitT -= dt;
 
   // ---------- boost ----------
   const boostKey = controls && k.boost();
@@ -267,16 +338,15 @@ export function step(rawDt: number) {
   const topEff = stats.top * (P.boosting ? stats.boost : 1);
   P.topEff = topEff;
 
-  // combo decay
   if (P.comboT > 0) {
     P.comboT -= dt;
     if (P.comboT <= 0) P.combo = 1;
   }
   if (mode === "run") P.runTime += dt;
 
-  // ---------- loop ----------
   if (P.loop) {
     stepLoop(dt);
+    stepCones(dt);
     publish(dt, mode);
     return;
   }
@@ -284,10 +354,10 @@ export function step(rawDt: number) {
   if (P.wipe > 0) {
     P.wipe -= dt;
     P.wipeSpin += dt * 9 * Math.max(0.2, P.wipe);
+    P.speed *= Math.exp(-2.5 * dt);
     if (P.wipe <= 0) P.wipeSpin = 0;
   }
 
-  const sNow = -P.z;
   const up = controls && k.up();
   const down = controls && k.down();
   const st = controls ? (k.left() ? 1 : 0) - (k.right() ? 1 : 0) : 0;
@@ -312,23 +382,16 @@ export function step(rawDt: number) {
     if (P.speed > maxV) P.speed -= (P.speed - maxV) * 2 * dt;
     if (mode === "finished") P.speed *= Math.exp(-1.4 * dt);
 
-    const sf =
-      Math.min(1, Math.abs(P.speed) / 6) * (1 - 0.35 * Math.min(1, P.speed / 60)) * Math.sign(P.speed || 1);
+    const sf = Math.min(1, Math.abs(P.speed) / 6) * (1 - 0.35 * Math.min(1, P.speed / 60)) * Math.sign(P.speed || 1);
     P.yaw += P.steer * stats.handling * sf * dt;
-
-    if (controls && k.jump() && !P.jumpHeld) {
-      P.grounded = false;
-      P.vy = Math.max(P.vy, 0) + 9.5;
-      P.takeoffPitch = P.pitch;
-      P.airT = 0;
-      P.tYaw = P.tPitch = P.tRoll = 0;
-    }
   } else {
     P.vy -= G * dt;
     P.speed *= Math.exp(-0.05 * dt);
     if (P.boosting) P.speed += 10 * dt;
     if (controls) {
       P.tYaw += st * stats.air * dt;
+      // a little air steering so you can line up landings
+      P.yaw += st * stats.handling * 0.35 * dt;
       if (up) P.tPitch += stats.air * 0.85 * dt;
       if (down) P.tPitch -= stats.air * 0.85 * dt;
       if (k.rollL()) P.tRoll -= stats.air * 0.9 * dt;
@@ -337,24 +400,25 @@ export function step(rawDt: number) {
     P.takeoffPitch *= Math.exp(-2.5 * dt);
     P.airT += dt;
   }
-  P.jumpHeld = controls && k.jump();
 
   // ---------- integrate ----------
   let nx = P.x + Math.sin(P.yaw) * P.speed * dt;
   let nz = P.z + Math.cos(P.yaw) * P.speed * dt;
-  const ns = -nz;
   P.wallT -= dt;
 
   if (nz > 0) {
-    // HUB
-    nx = Math.max(HUB_BOUNDS.minX, Math.min(HUB_BOUNDS.maxX, nx));
-    if (nz > HUB_BOUNDS.maxZ) nz = HUB_BOUNDS.maxZ;
+    // ---- HUB ----
+    if (nx < HUB_BOUNDS.minX || nx > HUB_BOUNDS.maxX || nz > HUB_BOUNDS.maxZ) {
+      if (Math.abs(P.speed) > 12) impact("wood", Math.abs(P.speed), "Smashed the fence");
+      nx = Math.max(HUB_BOUNDS.minX, Math.min(HUB_BOUNDS.maxX, nx));
+      nz = Math.min(HUB_BOUNDS.maxZ, nz);
+    }
     if (nz < 0.8 && Math.abs(nx) > GATE_HALF - 1.2 && P.z >= 0.8) {
+      if (Math.abs(P.speed) > 12) impact("wood", Math.abs(P.speed), "Smashed the fence");
       nz = 0.8;
-      P.speed *= 0.5;
     }
     for (const b of HUB_BUILDINGS) {
-      const r = 1.6;
+      const r = 1.9;
       const minX = b.center[0] - b.size[0] / 2 - r;
       const maxX = b.center[0] + b.size[0] / 2 + r;
       const minZ = b.center[1] - b.size[2] / 2 - r;
@@ -366,26 +430,55 @@ export function step(rawDt: number) {
         else if (m === pens[1]) nx = maxX;
         else if (m === pens[2]) nz = minZ;
         else nz = maxZ;
-        P.speed *= 0.6;
+        impact(b.id === "dealer" ? "glass" : "concrete", Math.abs(P.speed), "Drove into a building");
+      }
+    }
+    for (const o of HUB_SOLIDS) {
+      const dx = nx - o.x;
+      const dz = nz - o.z;
+      const rr = o.r + 1.7;
+      const d = Math.hypot(dx, dz);
+      if (d < rr) {
+        nx = o.x + (dx / (d || 1)) * rr;
+        nz = o.z + (dz / (d || 1)) * rr;
+        const kind: CrashKind = o.kind === "tree" ? "wood" : o.kind === "wood" ? "wood" : o.kind === "metal" ? "metal" : "concrete";
+        impact(kind, Math.abs(P.speed), o.kind === "tree" ? "Hugged a tree" : o.kind === "metal" ? "T-boned a parked car" : "Ouch!");
       }
     }
   } else {
+    // ---- ROAD ----
+    const ns = -nz;
     const c = cAt(ns);
     const dx = nx - c;
     const lim = HALF - 1.3;
     if (Math.abs(dx) > lim) {
       nx = c + Math.sign(dx) * lim;
-      if (P.grounded && P.speed > 0) P.yaw = lerpAngle(P.yaw, roadYaw(ns), 0.35);
-      P.speed *= 0.985;
-      if (P.wallT <= 0 && P.speed > 8) {
-        audio.play("wall");
-        P.wallT = 0.3;
+      const ang = Math.abs(wrap(P.yaw - roadYaw(ns)));
+      const into = Math.abs(P.speed) * Math.sin(Math.min(ang, Math.PI / 2));
+      if (into > 16 && P.grounded) {
+        impact("wall", into * 1.3, "Slammed the wall");
+      } else {
+        if (P.grounded && P.speed > 0) P.yaw = lerpAngle(P.yaw, roadYaw(ns), 0.35);
+        P.speed *= 0.985;
+        if (P.wallT <= 0 && P.speed > 8) {
+          audio.crash("scrape", Math.min(1, into / 16));
+          P.wallT = 0.35;
+        }
       }
     }
     if (ns > L - 4) {
       nz = -(L - 4);
       P.speed = 0;
     }
+  }
+
+  // ---------- solid obstacles: nothing passes through ----------
+  const blockedBy = footprintBlocked(nx, nz, P.yaw, P.y);
+  if (blockedBy) {
+    const kind: CrashKind = blockedBy === "barrier" ? "barrier" : blockedBy === "pillar" ? "metal" : "concrete";
+    impact(kind, Math.abs(P.speed), blockedBy === "barrier" ? "Hit a barrier" : blockedBy === "pillar" ? "Hit the loop pillar" : "Hit the side of a ramp");
+    nx = P.x;
+    nz = P.z;
   }
 
   const gNew = groundAt(nx, nz);
@@ -413,7 +506,6 @@ export function step(rawDt: number) {
   P.x = nx;
   P.z = nz;
 
-  // visual ground alignment
   if (P.grounded) {
     const fx = Math.sin(P.yaw);
     const fz = Math.cos(P.yaw);
@@ -421,15 +513,74 @@ export function step(rawDt: number) {
     const gb = groundAt(P.x - fx * 1.6, P.z - fz * 1.6);
     const gl = groundAt(P.x + fz * 1, P.z - fx * 1);
     const gr = groundAt(P.x - fz * 1, P.z + fx * 1);
-    const tp = -Math.atan2(gf - gb, 3.2);
-    const tr = Math.atan2(gl - gr, 2) * 0.5 + P.steer * Math.min(1, P.speed / 40) * 0.05;
+    const clampD = (v: number) => Math.max(-1.2, Math.min(1.2, v));
+    const tp = -Math.atan2(clampD(gf - gb), 3.2);
+    const tr = Math.atan2(clampD(gl - gr), 2) * 0.5 + P.steer * Math.min(1, P.speed / 40) * 0.05;
     P.pitch += (tp - P.pitch) * (1 - Math.exp(-14 * dt));
     P.roll += (tr - P.roll) * (1 - Math.exp(-10 * dt));
   }
 
+  stepCones(dt);
+  const ns = -P.z;
   events(ns, mode, stats, game);
   P.lastS = ns;
   publish(dt, mode);
+}
+
+function stepCones(dt: number) {
+  const cones = runState.cones;
+  const vx = Math.sin(P.yaw) * P.speed;
+  const vz = Math.cos(P.yaw) * P.speed;
+  for (let i = 0; i < cones.length; i++) {
+    const c = cones[i];
+    const dz = c.z - P.z;
+    if (dz < 25 && dz > -25) {
+      const dx = c.x - P.x;
+      const d = Math.hypot(dx, dz);
+      if (d < 1.9 && c.y < P.y + 1.4 && c.y > P.y - 1.6) {
+        const nxv = dx / (d || 1);
+        const nzv = dz / (d || 1);
+        // push out
+        c.x = P.x + nxv * 1.9;
+        c.z = P.z + nzv * 1.9;
+        const vn = vx * nxv + vz * nzv;
+        if (vn > 0) {
+          c.vx += nxv * vn * 1.2 + vx * 0.25;
+          c.vz += nzv * vn * 1.2 + vz * 0.25;
+          if (vn > 4 && c.tilt < 0.1) {
+            audio.play("cone");
+            P.speed *= 0.97;
+          }
+        }
+      }
+    }
+    const sp = Math.abs(c.vx) + Math.abs(c.vz);
+    if (sp > 0.01) {
+      c.x += c.vx * dt;
+      c.z += c.vz * dt;
+      const fr = Math.exp(-2.2 * dt);
+      c.vx *= fr;
+      c.vz *= fr;
+      c.rot += sp * dt * 0.6;
+      c.tilt = Math.min(Math.PI / 2, c.tilt + sp * dt * 0.5);
+      // keep in bounds
+      if (c.z < 0) {
+        const s = -c.z;
+        const cc = cAt(s);
+        const lim = HALF - 0.6;
+        if (Math.abs(c.x - cc) > lim) {
+          c.x = cc + Math.sign(c.x - cc) * lim;
+          c.vx *= -0.4;
+        }
+      } else {
+        c.x = Math.max(HUB_BOUNDS.minX, Math.min(HUB_BOUNDS.maxX, c.x));
+        c.z = Math.min(HUB_BOUNDS.maxZ, c.z);
+      }
+    } else if (c.tilt > 0 && c.tilt < Math.PI / 2) {
+      c.tilt = Math.max(0, c.tilt - dt * 2);
+    }
+    c.y = solidY(-c.z, c.x).y;
+  }
 }
 
 function stepLoop(dt: number) {
@@ -484,13 +635,7 @@ function collectCoins(radius: number) {
   }
 }
 
-function events(
-  ns: number,
-  mode: string,
-  stats: ReturnType<typeof currentStats>,
-  game: ReturnType<typeof useGame.getState>,
-) {
-  // Hub triggers
+function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>, game: ReturnType<typeof useGame.getState>) {
   if (mode === "hub") {
     let hint: string | null = null;
     for (const b of HUB_BUILDINGS) {
@@ -503,23 +648,24 @@ function events(
         P.x = t.x;
         P.z = t.z;
         P.yaw = b.exit.yaw + Math.PI;
+        P.snapCam = false;
         game.openMenu(b.id);
         return;
       }
       if (dx < t.hx + 12 && dz < t.hz + 12) hint = `Drive in to enter the ${b.label}`;
     }
     const dp = Math.hypot(P.x - DAILY_PAD.x, P.z - DAILY_PAD.z);
+    const claimed = useSave.getState().lastDaily === todayKey();
     if (dp < DAILY_PAD.r) {
-      const day = todayKey();
-      const save = useSave.getState();
-      if (save.lastDaily !== day) {
-        save.claimDaily(day);
-        save.addWheels(150);
-        audio.play("buy");
-        game.popup("DAILY REWARD!", "gold", "+150 wheels — come back tomorrow");
-      } else hint = "Daily reward claimed — come back tomorrow";
-    } else if (dp < DAILY_PAD.r + 8 && useSave.getState().lastDaily !== todayKey()) {
-      hint = "Free daily wheels! Drive onto the pad";
+      if (!claimed && dailyArmed) {
+        dailyArmed = false;
+        P.speed = 0;
+        audio.play("ui");
+        game.setChestOpen(true);
+      } else if (claimed) hint = "Daily reward claimed — come back tomorrow";
+    } else {
+      dailyArmed = true;
+      if (dp < DAILY_PAD.r + 8 && !claimed) hint = "Daily reward ready! Drive onto the pad";
     }
     if (!hint && P.z < 14) hint = "Drive through the gate to start the run";
     game.setHint(hint);
@@ -540,42 +686,8 @@ function events(
       return;
     }
     collectCoins(stats.magnet);
-
-    // cones
-    for (let i = 0; i < CONES.length; i++) {
-      const cs = runState.cones[i];
-      if (cs.hit) continue;
-      const cn = CONES[i];
-      if (Math.abs(cn.s - ns) > 2) continue;
-      const x = cAt(cn.s) + cn.xo;
-      if (Math.hypot(x - P.x, -cn.s - P.z) < 1.7 && P.y < hAt(cn.s) + 1.5) {
-        cs.hit = true;
-        cs.x = x;
-        cs.z = -cn.s;
-        cs.y = hAt(cn.s);
-        cs.vx = Math.sin(P.yaw) * P.speed * 0.5 + (Math.random() - 0.5) * 8;
-        cs.vz = Math.cos(P.yaw) * P.speed * 0.5;
-        cs.vy = 6 + Math.random() * 6;
-        cs.r = 0;
-        P.speed *= 0.93;
-        audio.play("cone");
-        award(1);
-      }
-    }
-
-    // barriers
     const dxc = P.x - cAt(ns);
-    for (const b of BARRIERS) {
-      if (ns > b.s - 1.2 && P.lastS <= b.s + 0.6 && ns < b.s + 1.5) {
-        if (Math.abs(dxc - b.xo) < b.w / 2 + 0.9 && P.y < hAt(b.s) + 1.3) {
-          P.z = -(b.s - 1.3);
-          if (P.speed > 12) wipeout("Dodge the barriers!");
-          P.speed = Math.min(P.speed, 3);
-        }
-      }
-    }
 
-    // pads
     if (P.grounded) {
       for (const p of PADS) {
         if (Math.abs(p.s - ns) < 3.5 && Math.abs(dxc - p.xo) < 2.8) {
@@ -587,10 +699,6 @@ function events(
           P.speed = Math.max(P.speed, P.topEff * 1.05);
         }
       }
-    }
-
-    // loops
-    if (P.grounded) {
       for (const lp of LOOPS) {
         if (P.lastS < lp.s && ns >= lp.s) {
           P.loop = { lp, th: 0 };
@@ -606,21 +714,14 @@ function events(
       const isBest = useSave.getState().recordRun(time, P.runTricks);
       audio.play("finish");
       game.setMode("finished");
-      game.setFinish({
-        time,
-        wheels: P.runWheels,
-        tricks: P.runTricks,
-        bestCombo: P.bestCombo,
-        isBest,
-        bonus,
-      });
+      game.setFinish({ time, wheels: P.runWheels, tricks: P.runTricks, bestCombo: P.bestCombo, isBest, bonus });
     }
   }
 }
 
 function publish(dt: number, mode: string) {
   const speed01 = Math.min(1, Math.abs(P.speed) / 60);
-  if (mode !== "title" && mode !== "menu") audio.engine(speed01, P.boosting, true);
+  if (mode !== "title" && mode !== "menu") audio.engine(speed01, P.boosting, true, P.electric);
   hudAcc += dt;
   if (hudAcc < 0.08) return;
   hudAcc = 0;

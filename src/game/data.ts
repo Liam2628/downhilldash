@@ -15,6 +15,7 @@ export type CarDef = {
   tag: string;
   desc: string;
   scale: number;
+  electric?: boolean;
   stats: CarStats;
 };
 
@@ -78,6 +79,39 @@ export const CARS: CarDef[] = [
     desc: "Massive boost, slow spins. Pure chaos on the mega ramp.",
     scale: 1.6,
     stats: { top: 42, accel: 13, handling: 1.6, boost: 1.8, air: 4.6, landing: 1.3 },
+  },
+  {
+    id: "ekart",
+    name: "Spark Kart",
+    file: "/models/kart-oopi.glb",
+    price: 1100,
+    tag: "ELECTRIC",
+    electric: true,
+    desc: "Battery-powered go-kart. Instant torque and silly-fast spins.",
+    scale: 2.1,
+    stats: { top: 41, accel: 24, handling: 2.6, boost: 1.45, air: 7.4, landing: 1.0 },
+  },
+  {
+    id: "evan",
+    name: "Volt Van",
+    file: "/models/van.glb",
+    price: 2600,
+    tag: "ELECTRIC",
+    electric: true,
+    desc: "Silent delivery van with a massive battery. Huge boosts, steady landings.",
+    scale: 1.7,
+    stats: { top: 44, accel: 21, handling: 1.8, boost: 1.75, air: 5, landing: 1.35 },
+  },
+  {
+    id: "ecoupe",
+    name: "Ion Coupe",
+    file: "/models/sedan-sports.glb",
+    price: 5200,
+    tag: "ELECTRIC",
+    electric: true,
+    desc: "Electric super-coupe. Brutal launch and razor handling.",
+    scale: 1.8,
+    stats: { top: 55, accel: 30, handling: 2.6, boost: 1.6, air: 7.8, landing: 1.05 },
   },
   {
     id: "race",

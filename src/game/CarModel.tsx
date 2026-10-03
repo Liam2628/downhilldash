@@ -14,8 +14,8 @@ function paintMaterial(src: THREE.Material, paint: string | null) {
   const uPaint = { value: new THREE.Color(paint ?? "#ffffff") };
   const uAmt = { value: paint ? 1 : 0 };
   m.onBeforeCompile = (shader) => {
-    shader.uniforms.uPaint = uPaint;
-    shader.uniforms.uPaintAmt = uAmt;
+    shader.uniforms['uPaint'] = uPaint;
+    shader.uniforms['uPaintAmt'] = uAmt;
     shader.fragmentShader =
       "uniform vec3 uPaint;\nuniform float uPaintAmt;\n" +
       shader.fragmentShader.replace(

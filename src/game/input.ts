@@ -5,7 +5,6 @@ const GAME_KEYS = new Set([
   "ArrowDown",
   "ArrowLeft",
   "ArrowRight",
-  "Space",
 ]);
 
 export function bindInput() {
@@ -27,15 +26,25 @@ export function bindInput() {
   };
 }
 
+import { useSave, type Action } from "./store";
+
+/** on-screen buttons */
+export const virtual = { boost: false };
+
+const has = (a: Action) => {
+  const binds = useSave.getState().settings.keys[a] ?? [];
+  for (const c of binds) if (keys.has(c)) return true;
+  return false;
+};
+
 export const k = {
-  up: () => keys.has("KeyW") || keys.has("ArrowUp"),
-  down: () => keys.has("KeyS") || keys.has("ArrowDown"),
-  left: () => keys.has("KeyA") || keys.has("ArrowLeft"),
-  right: () => keys.has("KeyD") || keys.has("ArrowRight"),
-  boost: () => keys.has("ShiftLeft") || keys.has("ShiftRight"),
-  jump: () => keys.has("Space"),
-  rollL: () => keys.has("KeyQ"),
-  rollR: () => keys.has("KeyE"),
+  up: () => has("up"),
+  down: () => has("down"),
+  left: () => has("left"),
+  right: () => has("right"),
+  boost: () => has("boost") || virtual.boost,
+  rollL: () => has("rollL"),
+  rollR: () => has("rollR"),
 };
 
 /** Orbit camera drag state for menu views */
