@@ -18,6 +18,7 @@ import {
   cAt,
   dcAt,
   hAt,
+  padAdd,
   rampAdd,
   terrainY,
 } from "./track";
@@ -173,7 +174,7 @@ function Ramps() {
   const geos = useMemo(
     () =>
       RAMPS.map((r) => {
-        const rows = 14;
+        const rows = 24;
         const pos: number[] = [];
         const uv: number[] = [];
         const idx: number[] = [];
@@ -181,10 +182,10 @@ function Ramps() {
           const s = r.s + (i / rows) * r.len;
           const c = cAt(s) + r.xo;
           const base = hAt(s);
-          const top = base + rampAdd(s, r.xo) + 0.03;
+           const top = base + rampAdd(s, r.xo) + 0.03;
           const l = c - r.w / 2;
           const rr = c + r.w / 2;
-          pos.push(l, base, -s, l, top, -s, rr, top, -s, rr, base, -s);
+           pos.push(l, base, -s, l, top, -s, rr, top, -s, rr, base, -s);
           const v = (i / rows) * (r.len / 4);
           uv.push(0, v, 0.05, v, r.w / 4, v, r.w / 4 + 0.05, v);
         }
@@ -197,7 +198,7 @@ function Ramps() {
             idx.push(a, b, c, b, d, c);
           }
         }
-        // back face (lip)
+         // The open front blends into the road; the rear is a solid launch lip.
         const e = rows * 4;
         idx.push(e, e + 2, e + 1, e, e + 3, e + 2);
         const g = new THREE.BufferGeometry();
@@ -290,24 +291,48 @@ function Loops() {
 
 function Pads() {
   const tex = padTexture();
-  const mat = useRef<THREE.MeshStandardMaterial>(null);
+  const mats = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
+  const geos = useMemo(() => PADS.map((p) => {
+    const rows = 18;
+    const positions: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+    for (let i = 0; i <= rows; i++) {
+      const s = p.s - p.len / 2 + p.len * i / rows;
+      const x = cAt(s) + p.xo;
+      const y = hAt(s);
+      const top = y + padAdd(s, p.xo) + 0.04;
+      positions.push(x - p.w / 2, y, -s, x - p.w / 2, top, -s, x + p.w / 2, top, -s, x + p.w / 2, y, -s);
+      const v = i / rows;
+      uvs.push(0, v, 0, v, 1, v, 1, v);
+    }
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < 3; j++) {
+        const a = i * 4 + j;
+        indices.push(a, a + 1, a + 4, a + 1, a + 5, a + 4);
+      }
+    }
+    const end = rows * 4;
+    indices.push(end, end + 3, end + 2, end, end + 2, end + 1);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }), []);
   useFrame(({ clock }) => {
-    if (mat.current) mat.current.emissiveIntensity = 1.2 + Math.sin(clock.elapsedTime * 8) * 0.5;
+    mats.current.forEach((mat, i) => {
+      if (mat) mat.emissiveIntensity = runState.usedPads[i] ? 0.08 : 1.2 + Math.sin(clock.elapsedTime * 8) * 0.5;
+    });
   });
   return (
     <>
-      {PADS.map((p, i) => {
-        const x = cAt(p.s) + p.xo;
-        const y = hAt(p.s) + 0.04;
-        const ry = Math.atan2(dcAt(p.s), -1);
-        const slope = Math.atan2(hAt(p.s - 3) - hAt(p.s + 3), 6);
-        return (
-          <mesh key={i} position={[x, y, -p.s]} rotation={[-Math.PI / 2 + slope, 0, ry + Math.PI, "YXZ"]}>
-            <planeGeometry args={[5, 7]} />
-            <meshStandardMaterial ref={i === 0 ? mat : undefined} map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={1.3} />
+      {geos.map((geo, i) => (
+          <mesh key={i} geometry={geo} castShadow receiveShadow>
+            <meshStandardMaterial ref={(material) => { mats.current[i] = material; }} map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={1.3} side={THREE.DoubleSide} roughness={0.65} />
           </mesh>
-        );
-      })}
+      ))}
     </>
   );
 }
@@ -594,7 +619,7 @@ function checkerTex() {
 function Billboards() {
   const items = useMemo(
     () => [
-      { s: 60, side: 1, text: "SEND IT", sub: "Space to hop · Shift to boost" },
+       { s: 60, side: 1, text: "DOWNHILL DASH", sub: "Shift to boost · Q / E to barrel roll" },
       { s: 240, side: -1, text: "FLIP IT", sub: "W / S in the air to flip" },
       { s: 470, side: 1, text: "SPIN IT", sub: "A / D in the air to spin" },
       { s: 600, side: -1, text: "LOOP!", sub: "Keep your speed up" },

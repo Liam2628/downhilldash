@@ -8,6 +8,7 @@ import {
   L,
   LOOPS,
   PADS,
+  padAdd,
   cAt,
   hAt,
   roadYaw,
@@ -42,7 +43,7 @@ export const P = {
   loop: null as null | { lp: Loop; th: number },
   boostT: 0,
   cooldownT: 0,
-  cooldownMax: 7,
+  cooldownMax: 14,
   boostMax: 2,
   padT: 0,
   combo: 1,
@@ -77,12 +78,14 @@ function makeCones(): ConeState[] {
 
 export const runState = {
   collected: new Uint8Array(COINS.length),
+  usedPads: new Uint8Array(PADS.length),
   cones: makeCones(),
   version: 0,
 };
 
 export function resetRun() {
   runState.collected.fill(0);
+  runState.usedPads.fill(0);
   // put the track cones back (hub cones stay where you pushed them)
   for (let i = 0; i < CONES.length; i++) {
     const c = runState.cones[i];
@@ -155,7 +158,7 @@ export function currentStats() {
     accel: base.accel * eng,
     handling: base.handling * (1 + 0.07 * u.grip),
     boostDur: 2 + 0.4 * u.nitro,
-    cooldown: Math.max(2.5, 7 - 0.8 * u.cooler),
+    cooldown: Math.max(5, 14 - 0.8 * u.cooler),
     magnet: 2.6 + 0.9 * u.magnet,
   };
 }
@@ -282,7 +285,9 @@ function footprintBlocked(x: number, z: number, yaw: number, y: number) {
     const px = x + fx * f + fz * r;
     const pz = z + fz * f - fx * r;
     const h = solidY(-pz, px);
-    if (h.y > y + 0.7) return h.kind ?? "concrete";
+    // A wheelbase spans the slope ahead of the car. Its raised deck is not a wall.
+    // Only a genuinely high side face stops the vehicle.
+    if (h.y > y + (h.kind === "ramp" ? 3 : 0.7)) return h.kind ?? "concrete";
   }
   return null;
 }
@@ -394,8 +399,8 @@ export function step(rawDt: number) {
       P.yaw += st * stats.handling * 0.35 * dt;
       if (up) P.tPitch += stats.air * 0.85 * dt;
       if (down) P.tPitch -= stats.air * 0.85 * dt;
-      if (k.rollL()) P.tRoll -= stats.air * 0.9 * dt;
-      if (k.rollR()) P.tRoll += stats.air * 0.9 * dt;
+       if (k.rollL()) P.tRoll -= stats.air * 1.5 * dt;
+       if (k.rollR()) P.tRoll += stats.air * 1.5 * dt;
     }
     P.takeoffPitch *= Math.exp(-2.5 * dt);
     P.airT += dt;
@@ -491,8 +496,8 @@ export function step(rawDt: number) {
           P.wallT = 0.35;
         }
       } else {
-        const kind: CrashKind = blockedBy === "barrier" ? "barrier" : blockedBy === "pillar" ? "metal" : "concrete";
-        impact(kind, Math.abs(P.speed), blockedBy === "barrier" ? "Hit a barrier" : blockedBy === "pillar" ? "Hit the loop pillar" : "Hit the side of a ramp");
+         const kind: CrashKind = blockedBy === "barrier" ? "barrier" : blockedBy === "pillar" ? "metal" : "concrete";
+         impact(kind, Math.abs(P.speed), blockedBy === "barrier" ? "Hit a barrier" : blockedBy === "pillar" ? "Hit the loop pillar" : blockedBy === "ramp" ? "Hit the side of a ramp" : "Hit the road");
         nx = P.x;
         nz = P.z;
       }
@@ -710,17 +715,20 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
     collectCoins(stats.magnet);
     const dxc = P.x - cAt(ns);
 
-    if (P.grounded) {
-      for (const p of PADS) {
-        if (Math.abs(p.s - ns) < 3.5 && Math.abs(dxc - p.xo) < 2.8) {
-          if (P.padT <= 0) {
-            audio.play("pad");
-            game.popup("BOOST PAD", "cool");
-          }
-          P.padT = 1.5;
-          P.speed = Math.max(P.speed, P.topEff * 1.05);
-        }
+    for (let i = 0; i < PADS.length; i++) {
+      const p = PADS[i];
+      if (runState.usedPads[i]) continue;
+      const start = p.s - p.len / 2;
+      if (ns >= start && ns <= start + p.len && Math.abs(dxc - p.xo) < p.w / 2 &&
+          (P.grounded || Math.abs(P.y - (hAt(ns) + padAdd(ns, dxc))) < 1.6)) {
+        runState.usedPads[i] = 1;
+        audio.play("pad");
+        game.popup("BOOST RAMP", "cool");
+        P.padT = 1.5;
+        P.speed = Math.max(P.speed, P.topEff * 1.05);
       }
+    }
+    if (P.grounded) {
       for (const lp of LOOPS) {
         if (P.lastS < lp.s && ns >= lp.s) {
           P.loop = { lp, th: 0 };

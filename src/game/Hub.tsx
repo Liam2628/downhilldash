@@ -279,7 +279,7 @@ function Fence() {
 }
 
 function Gate() {
-  const tex = signTexture("DOWNHILL", { sub: "▼ DRIVE THROUGH TO START ▼", bg: "#ff5a1f", border: "#fff3d6", accent: "#fff3d6" });
+  const tex = signTexture("DOWNHILL DASH", { sub: "▼ DRIVE THROUGH TO START ▼", bg: "#ff5a1f", border: "#fff3d6", accent: "#fff3d6" });
   const flags = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (flags.current) flags.current.children.forEach((c, i) => (c.rotation.y = Math.sin(clock.elapsedTime * 4 + i) * 0.3));
