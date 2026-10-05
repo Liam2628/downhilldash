@@ -619,7 +619,7 @@ function checkerTex() {
 function Billboards() {
   const items = useMemo(
     () => [
-      { s: 60, side: 1, text: "SEND IT", sub: "Space to hop · Shift to boost" },
+       { s: 60, side: 1, text: "DOWNHILL DASH", sub: "Shift to boost · Q / E to barrel roll" },
       { s: 240, side: -1, text: "FLIP IT", sub: "W / S in the air to flip" },
       { s: 470, side: 1, text: "SPIN IT", sub: "A / D in the air to spin" },
       { s: 600, side: -1, text: "LOOP!", sub: "Keep your speed up" },
