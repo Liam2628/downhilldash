@@ -6,7 +6,7 @@ const N = L + 260;
 
 export type Ramp = { s: number; len: number; h: number; xo: number; w: number };
 export type Loop = { s: number; R: number };
-export type Pad = { s: number; xo: number };
+export type Pad = { s: number; xo: number; len: number; h: number; w: number };
 export type Cone = { s: number; xo: number };
 export type Barrier = { s: number; xo: number; w: number };
 export type Coin = { x: number; y: number; z: number };
@@ -104,12 +104,25 @@ export function rampAdd(s: number, dx: number) {
   return 0;
 }
 
-export function surfaceY(s: number, x: number) {
-  if (s < 0) return 0;
-  return hAt(s) + rampAdd(s, x - cAt(s));
+/** Boost pads are raised wedges, with the same deck height used by rendering and driving. */
+export function padAdd(s: number, dx: number) {
+  for (const p of PADS) {
+    const start = p.s - p.len / 2;
+    if (s >= start && s <= start + p.len && Math.abs(dx - p.xo) <= p.w / 2) {
+      const t = (s - start) / p.len;
+      return p.h * t * t;
+    }
+  }
+  return 0;
 }
 
-export type SolidHit = { y: number; kind: "barrier" | "pillar" | null };
+export function surfaceY(s: number, x: number) {
+  if (s < 0) return 0;
+  const dx = x - cAt(s);
+  return hAt(s) + Math.max(rampAdd(s, dx), padAdd(s, dx));
+}
+
+export type SolidHit = { y: number; kind: "barrier" | "pillar" | "ramp" | null };
 /** Ground plus solid obstacles (barrier tops, loop pillars). */
 export function solidY(s: number, x: number): SolidHit {
   const base = surfaceY(s, x);
@@ -121,18 +134,18 @@ export function solidY(s: number, x: number): SolidHit {
   for (const lp of LOOPS) {
     if (Math.abs(s - lp.s) < 0.6 && Math.abs(Math.abs(dx) - 9) < 0.6) return { y: base + 99, kind: "pillar" };
   }
-  return { y: base, kind: null };
+  return { y: base, kind: rampAdd(s, dx) > 0 || padAdd(s, dx) > 0 ? "ramp" : null };
 }
 
 export const PADS: Pad[] = [
-  { s: 130, xo: 0 },
-  { s: 335, xo: 0 },
-  { s: 580, xo: 0 },
-  { s: 705, xo: -4 },
-  { s: 868, xo: 0 },
-  { s: 1165, xo: 0 },
-  { s: 1265, xo: 0 },
-  { s: 1465, xo: 0 },
+  { s: 130, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 335, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 580, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 705, xo: -4, len: 7, h: 1.2, w: 5 },
+  { s: 868, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 1165, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 1265, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 1465, xo: 0, len: 7, h: 1.2, w: 5 },
 ];
 
 // deterministic RNG
@@ -173,6 +186,7 @@ export const BARRIERS: Barrier[] = [];
 const blocked = (s: number) =>
   LOOPS.some((l) => Math.abs(s - l.s) < 22) ||
   RAMPS.some((r) => s > r.s - 3 && s < r.s + r.len + 2) ||
+  PADS.some((p) => s > p.s - p.len / 2 - 3 && s < p.s + p.len / 2 + 2) ||
   BARRIERS.some((b) => Math.abs(s - b.s) < 3);
 
 export const COINS: Coin[] = [];
