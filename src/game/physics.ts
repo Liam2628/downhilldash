@@ -158,7 +158,7 @@ export function currentStats() {
     accel: base.accel * eng,
     handling: base.handling * (1 + 0.07 * u.grip),
     boostDur: 2 + 0.4 * u.nitro,
-    cooldown: 2 * Math.max(2.5, 7 - 0.8 * u.cooler),
+    cooldown: Math.max(5, 14 - 0.8 * u.cooler),
     magnet: 2.6 + 0.9 * u.magnet,
   };
 }

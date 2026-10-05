@@ -1,4 +1,7 @@
 # Roadmap
+- [x] Rename game Downhill Dash with white DOWNHILL and forward-leaning orange DASH
+- [x] Give boost pads raised wedge geometry and one activation per run; double manual boost recharge
+- [x] Match ramp surfaces to driving collision; allow Q/E barrel rolls faster in air
 - [x] Real crashes, crash sounds, solid collisions, cones pushable, air control, autosave, no Space jump, electric cars, instant camera snap, pause stops game
 - [ ] On-screen boost button
 - [ ] Controls card closable forever; Settings > Controls with rebindable keys
