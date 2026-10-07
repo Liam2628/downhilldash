@@ -619,13 +619,13 @@ function checkerTex() {
 function Billboards() {
   const items = useMemo(
     () => [
-       { s: 60, side: 1, text: "DOWNHILL DASH", sub: "Shift to boost · Q / E to barrel roll" },
+        { s: 60, side: 1, text: "DOWNHILL DASH", sub: "Shift to boost · Q / E to spin" },
       { s: 240, side: -1, text: "FLIP IT", sub: "W / S in the air to flip" },
-      { s: 470, side: 1, text: "SPIN IT", sub: "A / D in the air to spin" },
+       { s: 470, side: 1, text: "SPIN IT", sub: "Q / E in the air to spin" },
       { s: 600, side: -1, text: "LOOP!", sub: "Keep your speed up" },
       { s: 860, side: 1, text: "MEGA RAMP", sub: "Boost pad ahead — commit" },
       { s: 990, side: -1, text: "DODGE!", sub: "Find the gap in the barriers" },
-      { s: 1230, side: 1, text: "ROLL IT", sub: "Q / E for barrel rolls" },
+       { s: 1230, side: 1, text: "ROLL IT", sub: "Z / C for barrel rolls · F to level" },
       { s: 1470, side: -1, text: "FINAL SEND", sub: "Biggest jump on the mountain" },
     ],
     [],

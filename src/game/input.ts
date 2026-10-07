@@ -15,7 +15,7 @@ export function bindInput() {
     if (GAME_KEYS.has(e.code)) e.preventDefault();
   };
   const up = (e: KeyboardEvent) => keys.delete(e.code);
-  const blur = () => keys.clear();
+  const blur = () => { keys.clear(); virtual.boost = false; };
   window.addEventListener("keydown", down);
   window.addEventListener("keyup", up);
   window.addEventListener("blur", blur);
@@ -43,8 +43,11 @@ export const k = {
   left: () => has("left"),
   right: () => has("right"),
   boost: () => has("boost") || virtual.boost,
+  spinL: () => has("spinL"),
+  spinR: () => has("spinR"),
   rollL: () => has("rollL"),
   rollR: () => has("rollR"),
+  level: () => has("level"),
 };
 
 /** Orbit camera drag state for menu views */

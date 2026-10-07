@@ -15,7 +15,7 @@ export type Settings = {
   keys: KeyBinds;
 };
 
-export type Action = "up" | "down" | "left" | "right" | "boost" | "rollL" | "rollR";
+export type Action = "up" | "down" | "left" | "right" | "boost" | "spinL" | "spinR" | "rollL" | "rollR" | "level";
 export type KeyBinds = Record<Action, string[]>;
 export const DEFAULT_KEYS: KeyBinds = {
   up: ["KeyW", "ArrowUp"],
@@ -23,8 +23,11 @@ export const DEFAULT_KEYS: KeyBinds = {
   left: ["KeyA", "ArrowLeft"],
   right: ["KeyD", "ArrowRight"],
   boost: ["ShiftLeft", "ShiftRight"],
-  rollL: ["KeyQ"],
-  rollR: ["KeyE"],
+  spinL: ["KeyQ"],
+  spinR: ["KeyE"],
+  rollL: ["KeyZ"],
+  rollR: ["KeyC"],
+  level: ["KeyF"],
 };
 
 type Save = {
@@ -152,7 +155,12 @@ export const useSave = create<Save & SaveActions>()(
           settings: {
             ...initial.settings,
             ...(p.settings ?? {}),
-            keys: { ...DEFAULT_KEYS, ...(p.settings?.keys ?? {}) },
+            keys: Object.fromEntries(Object.entries({ ...DEFAULT_KEYS, ...(p.settings?.keys ?? {}) }).map(([action, codes]) => [
+              action,
+              // Migrate the old Q/E roll defaults without changing custom bindings.
+              action === "rollL" && codes.length === 1 && codes[0] === "KeyQ" ? ["KeyZ"] :
+              action === "rollR" && codes.length === 1 && codes[0] === "KeyE" ? ["KeyC"] : codes,
+            ])) as KeyBinds,
           },
         };
       },
