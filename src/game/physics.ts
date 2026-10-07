@@ -22,6 +22,12 @@ import { audio, type CrashKind } from "./audio";
 
 const G = 30;
 const TAU = Math.PI * 2;
+const BRAKE = 38;
+const REVERSE_ACCEL = 12;
+const REVERSE_TOP = 10;
+const ROAD_GRIP = 11;
+const DRIFT_GRIP = 2.8;
+const AIR_LEVEL_RATE = 7;
 
 export const P = {
   x: SPAWN.x,
@@ -29,6 +35,7 @@ export const P = {
   z: SPAWN.z,
   yaw: SPAWN.yaw,
   speed: 0,
+  lateral: 0,
   vy: 0,
   grounded: true,
   pitch: 0,
@@ -116,6 +123,10 @@ export function teleport(x: number, z: number, yaw: number) {
   P.y = solidY(-z, x).y;
   P.yaw = yaw;
   P.speed = 0;
+  P.lateral = 0;
+  P.steer = 0;
+  P.hitT = 0;
+  P.padT = 0;
   P.vy = 0;
   P.grounded = true;
   P.loop = null;
@@ -208,8 +219,8 @@ function land(gy: number, stats: ReturnType<typeof currentStats>) {
   P.vy = 0;
   const tol = 0.8 * stats.landing;
   const yawErr = Math.abs(wrap(P.tYaw));
-  const pErr = Math.abs(wrap(P.tPitch));
-  const rErr = Math.abs(wrap(P.tRoll));
+  const pErr = Math.abs(wrap(P.takeoffPitch + P.tPitch));
+  const rErr = Math.abs(wrap(P.roll + P.tRoll));
   const clean = yawErr < tol * 1.15 && pErr < tol && rErr < tol;
   const spins = Math.floor((Math.abs(P.tYaw) + 0.9) / TAU);
   const flips = Math.floor((Math.abs(P.tPitch) + 0.9) / TAU);
@@ -318,6 +329,17 @@ export function step(rawDt: number) {
     return;
   }
 
+  // Recover before collision/ground snapping can disguise an invalid position.
+  const sNow = -P.z;
+  if (![P.x, P.y, P.z, P.speed, P.lateral].every(Number.isFinite) ||
+      P.y < hAt(Math.max(0, sNow)) - 18 ||
+      (P.z <= 0 && (Math.abs(P.x - cAt(sNow)) > HALF + 35 || sNow > L + 30)) ||
+      (P.z > 0 && (Math.abs(P.x) > 100 || P.z > HUB_BOUNDS.maxZ + 30))) {
+    returnToLobby();
+    game.popup("BACK ON TRACK", "cool");
+    return;
+  }
+
   const stats = currentStats();
   P.electric = stats.electric;
   const controls = (mode === "hub" || mode === "run") && P.wipe <= 0;
@@ -360,6 +382,7 @@ export function step(rawDt: number) {
     P.wipe -= dt;
     P.wipeSpin += dt * 9 * Math.max(0.2, P.wipe);
     P.speed *= Math.exp(-2.5 * dt);
+    P.lateral *= Math.exp(-6 * dt);
     if (P.wipe <= 0) P.wipeSpin = 0;
   }
 
@@ -375,40 +398,79 @@ export function step(rawDt: number) {
     const gB = groundAt(P.x - fx * 1.5, P.z - fz * 1.5);
     const slopeDown = Math.max(-0.6, Math.min(0.6, (gB - gA) / 3));
     let a = G * 0.5 * slopeDown;
-    if (up) a += stats.accel * Math.max(0, 1 - P.speed / topEff) * (P.speed < 0 ? 2 : 1);
-    if (down) a -= P.speed > 0.5 ? 30 : 9;
-    if (P.boosting) a += 26;
+    if (up && !down) a += stats.accel * Math.max(0, 1 - P.speed / topEff) * (P.speed < 0 ? 2 : 1);
+    if (down) {
+      // S brakes to zero on the slope. In the lobby, continuing to hold S reverses.
+      a = P.speed > 0 ? -BRAKE : mode === "run" ? 0 : -REVERSE_ACCEL;
+    }
+    if (P.boosting && !down) a += 26;
     a -= P.speed * 0.05;
     if (!up && !P.boosting) a -= Math.sign(P.speed) * 1.2;
+    const wasForward = P.speed > 0;
     P.speed += a * dt;
+    if (down && wasForward && P.speed < 0) P.speed = 0;
+    if (mode === "run") P.speed = Math.max(0, P.speed);
     if (!up && !down && Math.abs(P.speed) < 0.4 && Math.abs(slopeDown) < 0.02) P.speed = 0;
-    if (P.speed < -10) P.speed = -10;
+    if (P.speed < -REVERSE_TOP) P.speed = -REVERSE_TOP;
     const maxV = topEff * 1.3;
     if (P.speed > maxV) P.speed -= (P.speed - maxV) * 2 * dt;
     if (mode === "finished") P.speed *= Math.exp(-1.4 * dt);
 
-    const sf = Math.min(1, Math.abs(P.speed) / 6) * (1 - 0.35 * Math.min(1, P.speed / 60)) * Math.sign(P.speed || 1);
-    P.yaw += P.steer * stats.handling * sf * dt;
+    const sf = Math.max(-1, Math.min(1, P.speed / 8)) * (1 - 0.35 * Math.min(1, Math.abs(P.speed) / 60));
+    const turn = P.steer * stats.handling * sf * dt;
+    P.yaw += turn;
+    // Preserve momentum while the body turns, then regain lateral traction.
+    const oldSpeed = P.speed;
+    P.speed = oldSpeed * Math.cos(turn) + P.lateral * Math.sin(turn);
+    P.lateral = P.lateral * Math.cos(turn) - oldSpeed * Math.sin(turn);
+    const drift = Math.max(0, Math.min(1, (Math.abs(P.speed) - 22) / 18)) * Math.abs(P.steer);
+    const grip = (ROAD_GRIP + (DRIFT_GRIP - ROAD_GRIP) * drift) * (1 + useSave.getState().upgrades.grip * 0.07);
+    P.lateral *= Math.exp(-grip * dt);
+    if (Math.abs(P.speed) < 0.1) P.lateral *= Math.exp(-12 * dt);
   } else {
     P.vy -= G * dt;
     P.speed *= Math.exp(-0.05 * dt);
     if (P.boosting) P.speed += 10 * dt;
     if (controls) {
-      P.tYaw += st * stats.air * dt;
+      const spin = (k.spinL() ? 1 : 0) - (k.spinR() ? 1 : 0);
+      P.tYaw += spin * stats.air * 1.35 * dt;
       // a little air steering so you can line up landings
       P.yaw += st * stats.handling * 0.35 * dt;
-      if (up) P.tPitch += stats.air * 0.85 * dt;
-      if (down) P.tPitch -= stats.air * 0.85 * dt;
+      if (up) P.tPitch += stats.air * 2 * dt;
+      if (down) P.tPitch -= stats.air * 2 * dt;
        if (k.rollL()) P.tRoll -= stats.air * 1.5 * dt;
        if (k.rollR()) P.tRoll += stats.air * 1.5 * dt;
+      // Release trick keys to ease toward the nearest full rotation; F levels faster.
+      // Full turns are preserved so landing assistance does not erase trick rewards.
+      const assist = k.level();
+      const ease = 1 - Math.exp(-(assist ? AIR_LEVEL_RATE : 2.2) * dt);
+      if ((!up && !down) || assist) {
+        const angle = P.takeoffPitch + P.tPitch;
+        P.tPitch += (Math.round(angle / TAU) * TAU - angle) * ease;
+      }
+      if ((!k.rollL() && !k.rollR()) || assist) {
+        const angle = P.roll + P.tRoll;
+        P.tRoll += (Math.round(angle / TAU) * TAU - angle) * ease;
+      }
+      if ((!k.spinL() && !k.spinR()) || assist) P.tYaw += (Math.round(P.tYaw / TAU) * TAU - P.tYaw) * ease;
+      if (assist) {
+        P.speed *= Math.exp(-0.65 * dt);
+        P.lateral *= Math.exp(-5 * dt);
+      }
     }
-    P.takeoffPitch *= Math.exp(-2.5 * dt);
     P.airT += dt;
   }
 
   // ---------- integrate ----------
-  let nx = P.x + Math.sin(P.yaw) * P.speed * dt;
-  let nz = P.z + Math.cos(P.yaw) * P.speed * dt;
+  let nx = P.x + (Math.sin(P.yaw) * P.speed + Math.cos(P.yaw) * P.lateral) * dt;
+  let nz = P.z + (Math.cos(P.yaw) * P.speed - Math.sin(P.yaw) * P.lateral) * dt;
+  // This course is the downhill-only Slope; the lobby retains normal reverse driving.
+  if (mode === "run" && nz > P.z) {
+    nz = P.z;
+    P.speed = 0;
+    P.lateral = 0;
+    P.yaw = lerpAngle(P.yaw, roadYaw(-P.z), 1 - Math.exp(-4 * dt));
+  }
   P.wallT -= dt;
 
   if (nz > 0) {
@@ -458,6 +520,7 @@ export function step(rawDt: number) {
     const lim = HALF - 1.3;
     if (Math.abs(dx) > lim) {
       nx = c + Math.sign(dx) * lim;
+      P.lateral = 0;
       const ang = Math.abs(wrap(P.yaw - roadYaw(ns)));
       const into = Math.abs(P.speed) * Math.sin(Math.min(ang, Math.PI / 2));
       if (into > 16 && P.grounded) {
@@ -500,6 +563,7 @@ export function step(rawDt: number) {
          impact(kind, Math.abs(P.speed), blockedBy === "barrier" ? "Hit a barrier" : blockedBy === "pillar" ? "Hit the loop pillar" : blockedBy === "ramp" ? "Hit the side of a ramp" : "Hit the road");
         nx = P.x;
         nz = P.z;
+        P.lateral = 0;
       }
     } else if (blockedBy !== "pillar") {
       // Unstick: lift onto whatever we're overlapping so the car isn't wedged.
@@ -611,7 +675,8 @@ function stepCones(dt: number) {
 }
 
 function stepLoop(dt: number) {
-  const L0 = P.loop!;
+  const L0 = P.loop;
+  if (!L0) return;
   const { lp } = L0;
   P.speed = Math.max(24, P.speed - 14 * Math.sin(L0.th) * dt + (P.boosting ? 20 * dt : 0));
   L0.th += (P.speed / lp.R) * dt;
