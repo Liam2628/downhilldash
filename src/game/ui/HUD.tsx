@@ -261,7 +261,7 @@ function TitleScreen() {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-transparent via-transparent to-panel/60">
       <div className="animate-title-bob text-center">
-        <div className="font-display text-sm tracking-[0.4em] text-panel-foreground text-outline">A DOWNHILL CAR GAME</div>
+        <div className="font-display text-sm tracking-[0.4em] text-panel-foreground text-outline">A DOWNHILL STUNT SIMULATOR</div>
         <h1 className="font-display text-6xl leading-[1.05] text-panel-foreground text-outline sm:text-7xl md:text-9xl">
           DOWNHILL
           <br />
