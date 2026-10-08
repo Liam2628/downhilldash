@@ -400,8 +400,8 @@ function mergeGeos(parts: THREE.BufferGeometry[]) {
   const nor: number[] = [];
   for (const g of parts) {
     const ng = g.index ? g.toNonIndexed() : g;
-    pos.push(...(ng.attributes.position.array as Float32Array));
-    nor.push(...(ng.attributes.normal.array as Float32Array));
+    pos.push(...(ng.attributes['position'].array as Float32Array));
+    nor.push(...(ng.attributes['normal'].array as Float32Array));
   }
   const out = new THREE.BufferGeometry();
   out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
