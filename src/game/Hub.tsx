@@ -402,12 +402,16 @@ function _Lamps() {
 
 function DailyPad() {
   const ring = useRef<THREE.Mesh>(null);
-  const lastDaily = useSave((s) => s.lastDaily);
+  const sign = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (ring.current) ring.current.rotation.z = clock.elapsedTime;
+    if (sign.current) sign.current.rotation.y = clock.elapsedTime * 0.4;
   });
-  const tex = signTexture("DAILY WHEELS", { sub: "+150 EVERY DAY", bg: "#2bb673", border: "#fff3d6", accent: "#fff3d6" });
-  void lastDaily;
+  const tex = useMemo(
+    () => signTexture("DAILY REWARDS", { sub: "OPEN YOUR CHEST", bg: "#2bb673", border: "#fff3d6", accent: "#fff3d6" }),
+    [],
+  );
+  const W = 6;
   return (
     <group position={[DAILY_PAD.x, 0, DAILY_PAD.z]}>
       <mesh position={[0, 0.1, 0]} receiveShadow>
@@ -418,16 +422,25 @@ function DailyPad() {
         <ringGeometry args={[DAILY_PAD.r - 0.5, DAILY_PAD.r - 0.2, 6]} />
         <meshBasicMaterial color="#fff3d6" />
       </mesh>
-      <group position={[0, 4.5, -DAILY_PAD.r - 1]}>
-        <mesh>
-          <planeGeometry args={[7, 1.75]} />
-          <meshBasicMaterial map={tex} toneMapped={false} side={THREE.DoubleSide} />
-        </mesh>
-      </group>
-      <mesh position={[0, 2, -DAILY_PAD.r - 1]}>
-        <boxGeometry args={[0.3, 4, 0.3]} />
-        <meshStandardMaterial color="#444" />
+      <mesh position={[0, 3, -DAILY_PAD.r - 1]} castShadow>
+        <cylinderGeometry args={[0.2, 0.25, 6, 12]} />
+        <meshStandardMaterial color="#3a3d45" metalness={0.6} roughness={0.35} />
       </mesh>
+      {/* four-sided sign that slowly turns: readable from every direction */}
+      <group ref={sign} position={[0, 6.6, -DAILY_PAD.r - 1]}>
+        <mesh castShadow>
+          <boxGeometry args={[W + 0.2, 1.7, W + 0.2]} />
+          <meshStandardMaterial color="#1f2a24" />
+        </mesh>
+        {[0, 1, 2, 3].map((k) => (
+          <group key={k} rotation-y={(k * Math.PI) / 2}>
+            <mesh position={[0, 0, W / 2 + 0.11]}>
+              <planeGeometry args={[W, 1.5]} />
+              <meshBasicMaterial map={tex} toneMapped={false} />
+            </mesh>
+          </group>
+        ))}
+      </group>
     </group>
   );
 }
@@ -450,20 +463,46 @@ function StatsBoard() {
       ),
     [best, runs, bestTricks, owned],
   );
+  const wood = "#7a4e2a";
+  const dark = "#4a2f18";
   return (
     <group position={[STATS_BOARD.x, 0, STATS_BOARD.z]} rotation-y={Math.PI + 0.3}>
+      {/* posts run the full height and sit on stone footings */}
       {[-1, 1].map((sd) => (
-        <mesh key={sd} position={[sd * 2.6, 2.5, 0]} castShadow>
-          <boxGeometry args={[0.4, 5, 0.4]} />
-          <meshStandardMaterial color="#6b4423" />
+        <group key={sd}>
+          <mesh position={[sd * 3.05, 0.3, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.9, 0.6, 0.9]} />
+            <meshStandardMaterial color="#8a8a86" roughness={0.9} />
+          </mesh>
+          <mesh position={[sd * 3.05, 3.9, 0]} castShadow>
+            <boxGeometry args={[0.45, 7.2, 0.45]} />
+            <meshStandardMaterial color={wood} roughness={0.8} />
+          </mesh>
+        </group>
+      ))}
+      {/* backing panel sits between the posts */}
+      <mesh position={[0, 4.4, -0.05]} castShadow>
+        <boxGeometry args={[5.65, 5.4, 0.2]} />
+        <meshStandardMaterial color={dark} roughness={0.85} />
+      </mesh>
+      {/* frame trim */}
+      {[1.65 + 5.4 / 2 + 0.05, 1.65 - 0.05].map((y) => (
+        <mesh key={y} position={[0, y, 0.08]} castShadow>
+          <boxGeometry args={[5.65, 0.22, 0.18]} />
+          <meshStandardMaterial color={wood} roughness={0.8} />
         </mesh>
       ))}
-      <mesh position={[0, 4, 0]} castShadow>
-        <boxGeometry args={[5.6, 5.6, 0.3]} />
-        <meshStandardMaterial color="#4a2f18" />
+      {/* little roof cap */}
+      <mesh position={[0, 7.65, 0]} castShadow>
+        <boxGeometry args={[6.9, 0.25, 1.1]} />
+        <meshStandardMaterial color={dark} roughness={0.85} />
       </mesh>
-      <mesh position={[0, 4, 0.16]}>
-        <planeGeometry args={[5.2, 5.2]} />
+      <mesh position={[0, 4.4, 0.07]}>
+        <planeGeometry args={[5.3, 5.1]} />
+        <meshBasicMaterial map={tex} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 4.4, -0.16]} rotation-y={Math.PI}>
+        <planeGeometry args={[5.3, 5.1]} />
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
     </group>
