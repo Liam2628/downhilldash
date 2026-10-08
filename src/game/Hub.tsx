@@ -377,7 +377,8 @@ function Trees() {
   );
 }
 
-function Lamps() {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _Lamps() {
   const spots: [number, number][] = [
     [-14, 10], [14, 10], [-14, 30], [14, 30], [-14, 55], [14, 55], [-30, 70], [30, 70],
   ];

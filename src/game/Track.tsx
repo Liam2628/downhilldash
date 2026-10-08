@@ -370,10 +370,6 @@ function Coins() {
       tire.current.setMatrixAt(i, dummy.matrix);
       rim.current.setMatrixAt(i, dummy.matrix);
       spokes.current.setMatrixAt(i, dummy.matrix);
-      for (const z of [-0.2, 0, 0.2]) {
-        dummy.position.z = c.z;
-        dummy.updateMatrix();
-      }
       tread.current.setMatrixAt(i, dummy.matrix);
     }
     tire.current.instanceMatrix.needsUpdate = true;
