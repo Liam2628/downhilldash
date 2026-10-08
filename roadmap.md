@@ -7,9 +7,9 @@
 - [x] Real crashes, crash sounds, solid collisions, cones pushable, air control, autosave, no Space jump, electric cars, instant camera snap, pause stops game
 - [ ] On-screen boost button
 - [ ] Controls card closable forever; Settings > Controls with rebindable keys
-- [ ] Coins look like real wheels
+- [x] Coins look like real wheels
 - [ ] Top-bar style unified; readable over the sky
-- [ ] Remove checkered flag at finish
+- [x] Remove checkered flag at finish
 - [ ] Finish texturing; remove lamp posts; fix stats board wood layout
 - [ ] Daily Rewards: readable from all sides, chest popup w/ blur, weighted 100-1500 (usually 130-250)
 - [ ] Space returns to lobby
