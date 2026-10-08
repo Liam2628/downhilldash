@@ -339,36 +339,78 @@ function Pads() {
 
 function Coins() {
   const tire = useRef<THREE.InstancedMesh>(null);
-  const hub = useRef<THREE.InstancedMesh>(null);
+  const tread = useRef<THREE.InstancedMesh>(null);
+  const rim = useRef<THREE.InstancedMesh>(null);
+  const spokes = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const hubGeo = useMemo(() => new THREE.CylinderGeometry(0.42, 0.42, 0.2, 16).rotateX(Math.PI / 2), []);
+  // tire: fat cylinder on its side; tread: thin ribbed ring; rim: shiny disc; spokes: 5-arm star
+  const tireGeo = useMemo(() => new THREE.CylinderGeometry(0.72, 0.72, 0.42, 28, 1, true).rotateX(Math.PI / 2), []);
+  const treadGeo = useMemo(() => new THREE.TorusGeometry(0.72, 0.06, 6, 28), []);
+  const rimGeo = useMemo(() => new THREE.CylinderGeometry(0.46, 0.46, 0.44, 24).rotateX(Math.PI / 2), []);
+  const spokeGeo = useMemo(() => {
+    const parts: THREE.BufferGeometry[] = [];
+    for (let k = 0; k < 5; k++) {
+      const b = new THREE.BoxGeometry(0.1, 0.42, 0.5);
+      b.translate(0, 0.2, 0);
+      b.rotateZ((k / 5) * Math.PI * 2);
+      parts.push(b);
+    }
+    parts.push(new THREE.CylinderGeometry(0.13, 0.13, 0.52, 12).rotateX(Math.PI / 2));
+    return mergeGeos(parts);
+  }, []);
   useFrame(({ clock }) => {
-    if (!tire.current || !hub.current) return;
+    if (!tire.current || !tread.current || !rim.current || !spokes.current) return;
     const t = clock.elapsedTime;
     for (let i = 0; i < COINS.length; i++) {
       const c = COINS[i];
       dummy.position.set(c.x, c.y + Math.sin(t * 3 + i) * 0.15, c.z);
       dummy.rotation.set(0, t * 2.5 + i * 0.3, 0);
-      const s = runState.collected[i] ? 0 : 1;
-      dummy.scale.setScalar(s);
+      dummy.scale.setScalar(runState.collected[i] ? 0 : 1);
       dummy.updateMatrix();
       tire.current.setMatrixAt(i, dummy.matrix);
-      hub.current.setMatrixAt(i, dummy.matrix);
+      rim.current.setMatrixAt(i, dummy.matrix);
+      spokes.current.setMatrixAt(i, dummy.matrix);
+      for (const z of [-0.2, 0, 0.2]) {
+        dummy.position.z = c.z;
+        dummy.updateMatrix();
+      }
+      tread.current.setMatrixAt(i, dummy.matrix);
     }
     tire.current.instanceMatrix.needsUpdate = true;
-    hub.current.instanceMatrix.needsUpdate = true;
+    tread.current.instanceMatrix.needsUpdate = true;
+    rim.current.instanceMatrix.needsUpdate = true;
+    spokes.current.instanceMatrix.needsUpdate = true;
   });
   return (
     <>
-      <instancedMesh ref={tire} args={[undefined, undefined, COINS.length]} castShadow frustumCulled={false}>
-        <torusGeometry args={[0.55, 0.22, 10, 22]} />
-        <meshStandardMaterial color="#1e1e22" roughness={0.6} />
+      <instancedMesh ref={tire} args={[tireGeo, undefined, COINS.length]} castShadow frustumCulled={false}>
+        <meshStandardMaterial color="#1a1a1d" roughness={0.85} side={THREE.DoubleSide} />
       </instancedMesh>
-      <instancedMesh ref={hub} args={[hubGeo, undefined, COINS.length]} frustumCulled={false}>
-        <meshStandardMaterial color="#ffc21a" emissive="#b07800" emissiveIntensity={0.7} metalness={0.8} roughness={0.25} />
+      <instancedMesh ref={tread} args={[treadGeo, undefined, COINS.length]} frustumCulled={false}>
+        <meshStandardMaterial color="#2a2a2e" roughness={0.9} />
+      </instancedMesh>
+      <instancedMesh ref={rim} args={[rimGeo, undefined, COINS.length]} frustumCulled={false}>
+        <meshStandardMaterial color="#ffc21a" emissive="#b07800" emissiveIntensity={0.6} metalness={0.85} roughness={0.25} />
+      </instancedMesh>
+      <instancedMesh ref={spokes} args={[spokeGeo, undefined, COINS.length]} frustumCulled={false}>
+        <meshStandardMaterial color="#e8e8ee" metalness={0.9} roughness={0.2} />
       </instancedMesh>
     </>
   );
+}
+
+function mergeGeos(parts: THREE.BufferGeometry[]) {
+  const pos: number[] = [];
+  const nor: number[] = [];
+  for (const g of parts) {
+    const ng = g.index ? g.toNonIndexed() : g;
+    pos.push(...(ng.attributes.position.array as Float32Array));
+    nor.push(...(ng.attributes.normal.array as Float32Array));
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  return out;
 }
 
 
@@ -563,8 +605,8 @@ function Gantries() {
         const isFinish = sec.s === FINISH;
         const tex = signTexture(sec.name, {
           bg: isFinish ? "#111" : "#1d6b4a",
-          border: isFinish ? "#ffffff" : "#ffcc1f",
-          sub: isFinish ? "CHECKERED FLAG" : `${Math.round(sec.s)} M`,
+          border: isFinish ? "#ff6b00" : "#ffcc1f",
+          sub: isFinish ? "YOU MADE IT" : `${Math.round(sec.s)} M`,
         });
         return (
           <group key={i} position={[x, y, -s]} rotation-y={ry}>
@@ -588,8 +630,8 @@ function Gantries() {
             </mesh>
             {isFinish && (
               <mesh position={[0, 0.03, 0]} rotation-x={-Math.PI / 2}>
-                <planeGeometry args={[HALF * 2, 3]} />
-                <meshStandardMaterial map={checkerTex()} />
+                <planeGeometry args={[HALF * 2, 1.2]} />
+                <meshStandardMaterial color="#ff6b00" emissive="#ff6b00" emissiveIntensity={0.4} />
               </mesh>
             )}
           </group>
@@ -597,23 +639,6 @@ function Gantries() {
       })}
     </>
   );
-}
-
-let _checker: THREE.Texture | null = null;
-function checkerTex() {
-  if (_checker) return _checker;
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 32;
-  const ctx = c.getContext("2d")!;
-  for (let x = 0; x < 16; x++)
-    for (let y = 0; y < 2; y++) {
-      ctx.fillStyle = (x + y) % 2 ? "#111" : "#fff";
-      ctx.fillRect(x * 16, y * 16, 16, 16);
-    }
-  _checker = new THREE.CanvasTexture(c);
-  _checker.colorSpace = THREE.SRGBColorSpace;
-  return _checker;
 }
 
 function Billboards() {

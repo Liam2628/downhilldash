@@ -505,7 +505,7 @@ export function Hub() {
       <Fence />
       <Gate />
       <Trees />
-      <Lamps />
+
       <DailyPad />
       <StatsBoard />
       <Suspense fallback={null}>
