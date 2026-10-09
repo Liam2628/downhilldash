@@ -195,11 +195,25 @@ function Controls() {
   );
 }
 
+function useTouchDevice() {
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const on = () => setTouch(mq.matches || navigator.maxTouchPoints > 0 && !window.matchMedia("(pointer: fine)").matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return touch;
+}
+
 function BoostButton() {
+  const touch = useTouchDevice();
   const boostState = useGame((s) => s.hud.boostState);
   const boostFrac = useGame((s) => s.hud.boostFrac);
   const release = () => (virtual.boost = false);
   const ready = boostState === "ready";
+  if (!touch) return null;
   return (
     <button
       aria-label="Boost"
