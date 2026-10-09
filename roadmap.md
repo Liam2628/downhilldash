@@ -1,9 +1,9 @@
 # Roadmap
-- [ ] Phase 2: predictable traversable barriers, stable ramp edges and safer boosted blind jumps
-- [ ] Phase 2: solid loop decks/supports, angled entry, steering/boost and smooth exit camera
-- [ ] Phase 2: hub gate cancellation orientation and recovery
-- [ ] Thicken tire coin rubber to meet the rim
-- [ ] Test Phase 2 scenarios in regression tests and the running game
+- [x] Phase 2: predictable traversable barriers, stable ramp edges and safer boosted blind jumps
+- [x] Phase 2: solid loop decks/supports, angled entry, steering/boost and smooth exit camera; straight exit runoff
+- [x] Phase 2: hub gate cancellation orientation and recovery
+- [x] Thicken tire coin rubber to meet the rim
+- [x] Test Phase 2 scenarios in regression tests and the running game (34 tests passed; no browser page errors)
 - [x] Phase 1: Q/E spins; braking/reverse steering; downhill-only slope; controlled drift; responsive flips; air leveling; out-of-bounds recovery
 - [x] Verify Phase 1 driving scenarios in the running game and automated regression tests
 - [x] Rename game Downhill Dash with white DOWNHILL and forward-leaning orange DASH
