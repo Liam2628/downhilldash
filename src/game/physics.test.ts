@@ -99,6 +99,24 @@ describe("Phase 2 track collisions", () => {
     keys.add("KeyS"); tick(0.4); expect(useGame.getState().mode).toBe("hub");
     const z = P.z; tick(0.4); expect(P.z).toBeGreaterThan(z); expect(P.yaw).toBeCloseTo(Math.PI);
   });
+  it("keeps control after an actual boosted loop exit", () => {
+    road(575); P.x = cAt(610) - 5; P.speed = 55; keys.add("KeyW");
+    let entered = false; let exited = false;
+    for (let i = 0; i < 800; i++) {
+      step(1 / 120); entered ||= !!P.loop;
+      if (entered && !P.loop) { exited = true; break; }
+      if (P.loop) keys.clear();
+      expect(P.wipe).toBe(0);
+    }
+    expect(exited).toBe(true);
+    for (let i = 0; i < 120; i++) { step(1 / 120); expect(P.wipe).toBe(0); }
+    expect(-P.z).toBeGreaterThan(620);
+  });
+  it("has solid loop rails when steering into their edge", () => {
+    const lp = LOOPS[0]; const p = loopPoint(lp, Math.PI / 2, 4.1);
+    teleport(p.x, p.z, Math.PI / 2); useGame.setState({ mode: "run" }); P.y = p.y; P.grounded = false; P.speed = 40;
+    step(1 / 120); expect(P.x).toBeLessThan(p.x + 0.1);
+  });
 });
 
 describe("Phase 1 driving", () => {
