@@ -148,16 +148,10 @@ describe("Phase 1 driving", () => {
     expect(fast).toBeGreaterThan(slow * 3);
     keys.clear(); tick(0.5); expect(Math.abs(P.lateral)).toBeLessThan(fast);
   });
-  it("uses Q/E for spin without making A/D spin the body", () => {
-    road(40); P.grounded = false; P.y += 80; keys.add("KeyQ"); tick(0.3);
-    expect(P.tYaw).toBeGreaterThan(1.5); expect(P.tRoll).toBe(0);
-    keys.clear(); keys.add("KeyE"); tick(0.3); expect(Math.abs(P.tYaw)).toBeLessThan(0.01);
-    keys.clear(); keys.add("KeyA"); tick(0.2); expect(Math.abs(P.tYaw)).toBeLessThan(0.01);
-  });
-  it("supports single and double flips and retains the launch pitch", () => {
-    road(40); P.grounded = false; P.y += 100; P.takeoffPitch = -0.4; keys.add("KeyS");
-    tick(1); expect(P.tPitch).toBeLessThan(-Math.PI * 2); expect(P.takeoffPitch).toBe(-0.4);
-    tick(1); expect(P.tPitch).toBeLessThan(-Math.PI * 4);
+  it("ignores held W/S in the air and keeps the body still", () => {
+    road(40); P.grounded = false; P.y += 100; P.takeoffPitch = -0.4; keys.add("KeyS"); keys.add("KeyQ");
+    tick(0.5); expect(Math.abs(P.tPitch)).toBeLessThan(0.05); expect(Math.abs(P.tYaw)).toBeLessThan(0.05);
+    expect(P.takeoffPitch).toBe(-0.4);
   });
   it("levels an airborne car while preserving completed turns, and slows with F", () => {
     road(40); P.grounded = false; P.y += 80; P.speed = 30;
