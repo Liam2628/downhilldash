@@ -486,7 +486,7 @@ function StatsBoard() {
         <meshStandardMaterial color={dark} roughness={0.85} />
       </mesh>
       {/* frame trim */}
-      {[1.65 + 5.4 / 2 + 0.05, 1.65 - 0.05].map((y) => (
+      {[1.7 + 5.4 + 0.05, 1.7 - 0.05].map((y) => (
         <mesh key={y} position={[0, y, 0.08]} castShadow>
           <boxGeometry args={[5.65, 0.22, 0.18]} />
           <meshStandardMaterial color={wood} roughness={0.8} />
