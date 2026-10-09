@@ -142,6 +142,7 @@ export function teleport(x: number, z: number, yaw: number) {
   P.grounded = true;
   P.loop = null;
   P.loopCamera = 0;
+  P.loopFallT = 0;
   P.wipe = 0;
   P.wipeSpin = 0;
   P.pitch = 0;

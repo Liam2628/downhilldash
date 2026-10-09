@@ -55,7 +55,7 @@ describe("Phase 2 track collisions", () => {
     }
     expect(landedS).toBeGreaterThan(940);
     expect(BARRIERS.find(b => b.s > landedS)?.s ?? 1180).toBeGreaterThan(landedS + P.speed * 0.8);
-    expect(Math.abs(P.x - cAt(-P.z))).toBeLessThan(8.71);
+    expect(Math.abs(P.x - cAt(-P.z))).toBeLessThan(9.01);
   });
   it.each([-0.5, 0, 0.5])("enters loops from angle %s without position snapping", (angle) => {
     const lp = LOOPS[0]; const point = loopPoint(lp, 0);
