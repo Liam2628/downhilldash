@@ -67,7 +67,7 @@ function stripGeometry(
       const b = a + 1;
       const c2 = a + n;
       const d = c2 + 1;
-      idx.push(a, c2, b, b, c2, d);
+      idx.push(a, b, c2, b, d, c2);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -147,13 +147,13 @@ function Walls() {
 
 function Terrain() {
   const geo = useMemo(() => {
-    const cols = [-220, -140, -90, -60, -40, -26, -18, -12, -10.5, 10.5, 12, 18, 26, 40, 60, 90, 140, 220];
+    const cols = [-700, -450, -300, -220, -140, -90, -60, -40, -26, -18, -12, -10.5, 10.5, 12, 18, 26, 40, 60, 90, 140, 220, 300, 450, 700];
     const grassA = new THREE.Color("#7fb04a");
     const grassB = new THREE.Color("#5f9a3c");
     const sand = new THREE.Color("#d9c08a");
     const rock = new THREE.Color("#9a8f80");
     const tmp = new THREE.Color();
-    return stripGeometry(-10, L + 260, 4, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
+    return stripGeometry(-10, L + 700, 4, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
       const a = Math.abs(dx);
       const downtown = s > 620 && s < 900;
       const base = downtown ? rock : s > 1240 ? sand : grassA;
@@ -679,6 +679,34 @@ function Billboards() {
   );
 }
 
+function Rocks() {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const N = 420;
+  useLayoutEffect(() => {
+    const d = new THREE.Object3D();
+    let seed = 7;
+    const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < N; i++) {
+      const s = 20 + r() * (L + 300);
+      const side = r() < 0.5 ? -1 : 1;
+      const dx = side * (14 + r() * 260);
+      const sc = 0.6 + r() * r() * 6;
+      d.position.set(cAt(Math.min(s, L)) + dx, terrainY(s, dx) + sc * 0.2, -s);
+      d.rotation.set(r() * 3, r() * 3, r() * 3);
+      d.scale.set(sc, sc * (0.5 + r() * 0.5), sc);
+      d.updateMatrix();
+      ref.current!.setMatrixAt(i, d.matrix);
+    }
+    ref.current!.instanceMatrix.needsUpdate = true;
+  }, []);
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, N]} castShadow receiveShadow>
+      <dodecahedronGeometry args={[1, 0]} />
+      <meshStandardMaterial color="#8d8478" roughness={1} flatShading />
+    </instancedMesh>
+  );
+}
+
 export function Track() {
   return (
     <group>
@@ -695,6 +723,7 @@ export function Track() {
       <Gantries />
       <Billboards />
       <Scenery />
+      <Rocks />
     </group>
   );
 }
