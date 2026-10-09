@@ -24,7 +24,7 @@ import {
   type Loop,
 } from "./track";
 import { DAILY_PAD, GATE_HALF, HUB_BOUNDS, HUB_BUILDINGS, HUB_CONES, HUB_SOLIDS, SPAWN } from "./hub";
-import { k, doubleTap } from "./input";
+import { k, doubleTap, keys } from "./input";
 import { QUESTS, SPLITS, loadSplitPB, questProgress, questsNewRun, saveSplitPB } from "./quests";
 import { audio, type CrashKind } from "./audio";
 
@@ -995,6 +995,6 @@ function publish(dt: number, mode: string) {
 }
 
 function anyDriveKey() {
-  for (const k of keys) if (k !== "ShiftLeft" || true) return true;
+  return keys.size > 0;
   return false;
 }
