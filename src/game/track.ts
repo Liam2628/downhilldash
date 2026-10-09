@@ -6,7 +6,7 @@ const N = L + 260;
 
 export type Ramp = { s: number; len: number; h: number; xo: number; w: number };
 export type Loop = { s: number; R: number };
-export type Pad = { s: number; xo: number; len: number; h: number; w: number };
+export type Pad = { s: number; xo: number; len: number; h: number; w: number; flat?: boolean };
 export type Cone = { s: number; xo: number };
 export type Barrier = { s: number; xo: number; w: number };
 export type Coin = { x: number; y: number; z: number };
@@ -124,6 +124,7 @@ export function rampAdd(s: number, dx: number) {
 /** Boost pads are raised wedges, with the same deck height used by rendering and driving. */
 export function padAdd(s: number, dx: number) {
   for (const p of PADS) {
+    if (p.flat) continue;
     const start = p.s - p.len / 2;
     if (s >= start && s <= start + p.len && Math.abs(dx - p.xo) <= p.w / 2) {
       const t = (s - start) / p.len;
@@ -164,12 +165,12 @@ export function solidY(s: number, x: number): SolidHit {
 
 export const PADS: Pad[] = [
   { s: 130, xo: 0, len: 7, h: 1.2, w: 5 },
-  { s: 335, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 335, xo: 0, len: 8, h: 0, w: 6, flat: true },
   { s: 580, xo: 0, len: 7, h: 1.2, w: 5 },
   { s: 705, xo: -4, len: 7, h: 1.2, w: 5 },
-  { s: 868, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 868, xo: 0, len: 8, h: 0, w: 6, flat: true },
   { s: 1165, xo: 0, len: 7, h: 1.2, w: 5 },
-  { s: 1265, xo: 0, len: 7, h: 1.2, w: 5 },
+  { s: 1265, xo: 0, len: 8, h: 0, w: 6, flat: true },
   { s: 1465, xo: 0, len: 7, h: 1.2, w: 5 },
 ];
 
@@ -271,7 +272,8 @@ export function terrainY(s: number, dx: number) {
   const a = Math.abs(dx);
   const base = hAt(Math.min(L + 4, Math.max(0, s))) - 0.25;
   if (a < HALF + 1.5) return base;
-  const out = a - (HALF + 1.5);
+  // Flat next to the lobby so hills never poke through the plaza or its fence.
+  const out = (a - (HALF + 1.5)) * smooth(2, 40, s);
   const far = Math.max(0, out - 200);
   return base + out * 0.18 + far * 0.25 + Math.sin(s / 23 + dx / 17) * Math.min(1, out / 20) * 3 + Math.sin(s / 90 + dx / 60) * Math.min(1, far / 100) * 40;
 }
@@ -289,7 +291,7 @@ export function terrainY(s: number, dx: number) {
         SCENERY_BUILDINGS.push({
           x: cAt(s) + dx,
           z: -s,
-          y: terrainY(s, side * off),
+          y: 0,
           w,
           d: 6 + r() * 6,
           h,
@@ -300,7 +302,7 @@ export function terrainY(s: number, dx: number) {
         for (let k = 0; k < 5; k++) {
           const off = 16 + r() * 180;
           const dx = side * off;
-          SCENERY_TREES.push({ x: cAt(s) + dx, y: terrainY(s, dx), z: -s - r() * 8, s: 0.8 + r() * 1.1 });
+          SCENERY_TREES.push({ x: cAt(s) + dx, y: 0, z: -s - r() * 8, s: 0.8 + r() * 1.1 });
         }
       }
     }
@@ -308,3 +310,33 @@ export function terrainY(s: number, dx: number) {
 }
 
 export const TUNNEL = { s0: 636, s1: 700 };
+
+/** Grid shared by the terrain mesh, so props sit on the drawn surface (not the smooth function). */
+export const TERRAIN_COLS = [-700, -450, -300, -220, -140, -90, -60, -40, -26, -18, -12, -10.5, -6, 0, 6, 10.5, 12, 18, 26, 40, 60, 90, 140, 220, 300, 450, 700];
+export const TERRAIN_DS = 2;
+export const TERRAIN_S0 = 0;
+/** Height of the rendered terrain mesh at world x,z (bilinear on the mesh grid). */
+export function terrainMeshY(x: number, z: number) {
+  const s = Math.max(TERRAIN_S0, -z);
+  const i = Math.floor((s - TERRAIN_S0) / TERRAIN_DS);
+  const s0 = TERRAIN_S0 + i * TERRAIN_DS, s1 = s0 + TERRAIN_DS;
+  const f = (s - s0) / TERRAIN_DS;
+  const rowY = (rs: number) => {
+    const dx = x - cAt(rs);
+    const C = TERRAIN_COLS;
+    if (dx <= C[0]) return terrainY(rs, C[0]);
+    if (dx >= C[C.length - 1]) return terrainY(rs, C[C.length - 1]);
+    let j = 0;
+    while (C[j + 1] < dx) j++;
+    const g = (dx - C[j]) / (C[j + 1] - C[j]);
+    return terrainY(rs, C[j]) * (1 - g) + terrainY(rs, C[j + 1]) * g;
+  };
+  return rowY(s0) * (1 - f) + rowY(s1) * f - 0.05;
+}
+
+// Resolve prop heights against the drawn terrain (buildings use their lowest corner).
+for (const t of SCENERY_TREES) t.y = terrainMeshY(t.x, t.z) - 0.15;
+for (const b of SCENERY_BUILDINGS) {
+  b.y = Math.min(terrainMeshY(b.x - b.w / 2, b.z - b.d / 2), terrainMeshY(b.x + b.w / 2, b.z - b.d / 2),
+    terrainMeshY(b.x - b.w / 2, b.z + b.d / 2), terrainMeshY(b.x + b.w / 2, b.z + b.d / 2), terrainMeshY(b.x, b.z));
+}

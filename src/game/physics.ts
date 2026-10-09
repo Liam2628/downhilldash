@@ -77,6 +77,7 @@ export const P = {
   boosting: false,
   landFlash: 0,
   loopCamera: 0,
+  loopFallT: 0,
   snapCam: true,
   shake: 0,
   electric: false,
@@ -141,6 +142,7 @@ export function teleport(x: number, z: number, yaw: number) {
   P.grounded = true;
   P.loop = null;
   P.loopCamera = 0;
+  P.loopFallT = 0;
   P.wipe = 0;
   P.wipeSpin = 0;
   P.pitch = 0;
@@ -323,6 +325,7 @@ export function step(rawDt: number) {
 }
 
 function collideLoopDeck(nx: number, nz: number, dt: number) {
+  if (P.loopFallT > 0) { P.loopFallT -= dt; return false; }
   for (const lp of LOOPS) {
     if (Math.abs(-nz - lp.s) > lp.R + 3) continue;
     const nextY = P.y + P.vy * dt;
@@ -544,7 +547,7 @@ function stepPhysics(rawDt: number) {
       nz = 0.8;
     }
     for (const b of HUB_BUILDINGS) {
-      const r = 1.9;
+      const r = 1.1;
       const minX = b.center[0] - b.size[0] / 2 - r;
       const maxX = b.center[0] + b.size[0] / 2 + r;
       const minZ = b.center[1] - b.size[2] / 2 - r;
@@ -562,7 +565,7 @@ function stepPhysics(rawDt: number) {
     for (const o of HUB_SOLIDS) {
       const dx = nx - o.x;
       const dz = nz - o.z;
-      const rr = o.r + 1.7;
+      const rr = o.r + 1.0;
       const d = Math.hypot(dx, dz);
       if (d < rr) {
         nx = o.x + (dx / (d || 1)) * rr;
@@ -576,7 +579,7 @@ function stepPhysics(rawDt: number) {
     const ns = -nz;
     const c = cAt(ns);
     const dx = nx - c;
-    const lim = HALF - 1.3;
+    const lim = HALF - 1.0;
     if (Math.abs(dx) > lim) {
       nx = c + Math.sign(dx) * lim;
       P.lateral = 0;
@@ -602,7 +605,7 @@ function stepPhysics(rawDt: number) {
   if (mode === "run") {
     for (const b of BARRIERS) {
       const bs = -nz;
-      if (Math.abs(bs - b.s) > BARRIER_DEPTH / 2 + 1.8 || Math.abs(nx - cAt(bs) - b.xo) > b.w / 2 + 0.85) continue;
+      if (Math.abs(bs - b.s) > BARRIER_DEPTH / 2 + 1.2 || Math.abs(nx - cAt(bs) - b.xo) > b.w / 2 + 0.6) continue;
       if (P.y > hAt(b.s) + BARRIER_HEIGHT + 0.1) continue;
       if (P.grounded && P.speed >= BARRIER_OVER_SPEED) {
         // A visible sloped nose converts a bounded amount of forward momentum to a hop.
@@ -755,16 +758,21 @@ function stepLoop(dt: number) {
   if (!loop) return;
   const { lp } = loop;
   const stats = currentStats();
-  const st = (k.left() ? 1 : 0) - (k.right() ? 1 : 0);
-  P.steer += (st - P.steer) * (1 - Math.exp(-10 * dt));
-  loop.heading += (P.steer * stats.handling * 0.65 - loop.heading * 3) * dt;
-  loop.heading = Math.max(-0.65, Math.min(0.65, loop.heading));
-  P.lateral += (-Math.sin(loop.heading) * P.speed - P.lateral) * (1 - Math.exp(-6 * dt));
-  loop.offset += P.lateral * dt;
-  const limit = LOOP_WIDTH / 2 - 1.1;
-  if (Math.abs(loop.offset) > limit) {
-    loop.offset = Math.sign(loop.offset) * limit; P.lateral = 0; loop.heading *= 0.6;
-    if (P.wallT <= 0) { audio.crash("scrape", 0.3); P.wallT = 0.3; P.speed *= 0.98; }
+  // No steering on loops: the car follows the deck's centre line it entered on.
+  P.steer += (0 - P.steer) * (1 - Math.exp(-10 * dt));
+  loop.heading += (0 - loop.heading) * (1 - Math.exp(-6 * dt));
+  P.lateral = 0;
+  // Let go of the gas on the upper half and gravity wins: the car drops off.
+  if (!k.up() && !P.boosting && loop.th > Math.PI * 0.55 && loop.th < Math.PI * 1.45) {
+    const v = P.speed;
+    P.loop = null;
+    P.grounded = false; resetAir();
+    P.vy = v * Math.sin(loop.th);
+    P.speed = v * Math.cos(loop.th);
+    P.yaw = Math.PI; P.roll = 0;
+    P.loopFallT = 1.2;
+    useGame.getState().popup("FELL OFF THE LOOP", "bad", "Hold W to stay on");
+    return;
   }
   const throttle = k.up() ? stats.accel * Math.max(0, 1 - P.speed / P.topEff) : 0;
   P.speed += (throttle - 14 * Math.sin(loop.th) - P.speed * 0.05 + (P.boosting ? 26 : 0) - (k.down() ? BRAKE : 0)) * dt;

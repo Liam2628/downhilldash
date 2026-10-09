@@ -39,7 +39,7 @@ describe("Phase 2 track collisions", () => {
       let airborne = false;
       for (let i = 0; i < 240; i++) {
         step(1 / 120); airborne ||= !P.grounded;
-        expect(Math.abs(P.roll)).toBeLessThan(0.2); expect(P.wipe).toBe(0); expect(Math.abs(P.vy)).toBeLessThan(40);
+        expect(Math.abs(P.roll)).toBeLessThan(0.3); expect(P.wipe).toBe(0); expect(Math.abs(P.vy)).toBeLessThan(40);
         if (airborne) break;
       }
       expect(airborne).toBe(true);
@@ -55,7 +55,7 @@ describe("Phase 2 track collisions", () => {
     }
     expect(landedS).toBeGreaterThan(940);
     expect(BARRIERS.find(b => b.s > landedS)?.s ?? 1180).toBeGreaterThan(landedS + P.speed * 0.8);
-    expect(Math.abs(P.x - cAt(-P.z))).toBeLessThan(8.71);
+    expect(Math.abs(P.x - cAt(-P.z))).toBeLessThan(9.01);
   });
   it.each([-0.5, 0, 0.5])("enters loops from angle %s without position snapping", (angle) => {
     const lp = LOOPS[0]; const point = loopPoint(lp, 0);
@@ -69,14 +69,22 @@ describe("Phase 2 track collisions", () => {
     for (let i = 0; i < 300; i++) { step(1 / 120); entered ||= !!P.loop; if (entered) break; }
     expect(entered).toBe(true);
   });
-  it("makes loop steering and boost meaningful and exits continuously", () => {
+  it("ignores steering on loops and drops the car without throttle at the top", () => {
     const lp = LOOPS[0]; const point = loopPoint(lp, 0);
     teleport(point.x, point.z, Math.PI); useGame.setState({ mode: "run" });
     P.loop = { lp, th: 0.2, offset: 0, heading: 0 }; P.speed = 35;
-    keys.add("KeyA"); tick(0.4); expect(Math.abs(P.loop?.offset ?? 0)).toBeGreaterThan(0.2);
-    keys.clear(); const speed = P.speed; keys.add("ShiftLeft"); tick(0.1);
+    keys.add("KeyW"); keys.add("KeyA"); tick(0.3); expect(Math.abs(P.loop?.offset ?? 1)).toBeLessThan(0.01);
+    keys.clear(); P.loop = { lp, th: Math.PI, offset: 0, heading: 0 }; step(1 / 120);
+    expect(P.loop).toBeNull(); expect(P.grounded).toBe(false);
+  });
+  it("makes loop boost meaningful and exits continuously", () => {
+    const lp = LOOPS[0]; const point = loopPoint(lp, 0);
+    teleport(point.x, point.z, Math.PI); useGame.setState({ mode: "run" });
+    P.loop = { lp, th: 0.2, offset: 0, heading: 0 }; P.speed = 35;
+    keys.add("KeyW"); tick(0.2);
+    const speed = P.speed; keys.add("ShiftLeft"); tick(0.1);
     expect(P.boosting).toBe(true); expect(P.speed).toBeGreaterThan(speed);
-    keys.clear(); let exited = false;
+    keys.clear(); keys.add("KeyW"); let exited = false;
     for (let i = 0; i < 600; i++) {
       const old = { x: P.x, y: P.y, z: P.z }; step(1 / 120);
       expect(Math.hypot(P.x - old.x, P.y - old.y, P.z - old.z)).toBeLessThan(1.5);
@@ -105,7 +113,6 @@ describe("Phase 2 track collisions", () => {
     for (let i = 0; i < 800; i++) {
       step(1 / 120); entered ||= !!P.loop;
       if (entered && !P.loop) { exited = true; break; }
-      if (P.loop) keys.clear();
       expect(P.wipe).toBe(0);
     }
     expect(exited).toBe(true);
