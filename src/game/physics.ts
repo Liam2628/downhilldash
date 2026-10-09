@@ -24,7 +24,8 @@ import {
   type Loop,
 } from "./track";
 import { DAILY_PAD, GATE_HALF, HUB_BOUNDS, HUB_BUILDINGS, HUB_CONES, HUB_SOLIDS, SPAWN } from "./hub";
-import { k } from "./input";
+import { k, doubleTap } from "./input";
+import { QUESTS, SPLITS, loadSplitPB, questProgress, questsNewRun, saveSplitPB } from "./quests";
 import { audio, type CrashKind } from "./audio";
 
 const G = 30;
@@ -113,6 +114,10 @@ export function resetRun() {
     c.tilt = 0;
   }
   runState.version++;
+  runBackflips = 0;
+  questsNewRun();
+  splitPB = loadSplitPB();
+  splitNow = [];
   P.runTime = 0;
   P.runWheels = 0;
   P.runTricks = 0;
@@ -126,7 +131,12 @@ function resetAir() {
   P.tRoll = 0;
   P.airT = 0;
   P.takeoffPitch = 0;
+  autoFlip = 0;
 }
+let autoFlip = 0; // radians of automatic flip left (sign = direction)
+let runBackflips = 0;
+let splitPB: number[] = [];
+let splitNow: number[] = [];
 
 export function teleport(x: number, z: number, yaw: number) {
   P.x = x;
@@ -224,6 +234,12 @@ function impact(kind: CrashKind, impactSpeed: number, reason: string) {
   }
 }
 
+function questDone(q: (typeof QUESTS)[number] | null) {
+  if (!q) return;
+  award(q.reward);
+  useGame.getState().popup("QUEST COMPLETE!", "cool", `${q.label} · +${q.reward} wheels`);
+}
+
 function land(gy: number, stats: ReturnType<typeof currentStats>) {
   const air = P.airT;
   const impactV = -P.vy;
@@ -252,6 +268,7 @@ function land(gy: number, stats: ReturnType<typeof currentStats>) {
   let base = 0;
   if (flips) {
     parts.push((flips > 1 ? `${flips}x ` : "") + (P.tPitch < 0 ? "BACKFLIP" : "FRONTFLIP"));
+    if (P.tPitch < 0) { runBackflips += flips; questDone(questProgress("backflips", runBackflips)); }
     base += flips * 18;
   }
   if (spins) {
@@ -274,6 +291,7 @@ function land(gy: number, stats: ReturnType<typeof currentStats>) {
     useGame.getState().popup(parts.join(" + "), "hot", `+${reward} wheels${comboTxt}`);
     P.combo = Math.min(5, P.combo + 0.5);
     P.bestCombo = Math.max(P.bestCombo, P.combo);
+    questDone(questProgress("combo", P.combo));
     P.comboT = 5;
     P.cooldownT = Math.max(0, P.cooldownT - 1.5);
     P.speed += 4;
@@ -498,6 +516,13 @@ function stepPhysics(rawDt: number) {
       P.tYaw += spin * stats.air * 1.35 * dt;
       // a little air steering so you can line up landings
       P.yaw += st * stats.handling * 0.35 * dt;
+      if (doubleTap("up")) { autoFlip = TAU; audio.play("trick"); }
+      if (doubleTap("down")) { autoFlip = -TAU; audio.play("trick"); }
+      if (autoFlip !== 0) {
+        const stepA = Math.min(Math.abs(autoFlip), (TAU / 0.8) * dt) * Math.sign(autoFlip);
+        P.tPitch += stepA; autoFlip -= stepA;
+        if (Math.abs(autoFlip) < 1e-4) autoFlip = 0;
+      }
       if (up) P.tPitch += stats.air * 2 * dt;
       if (down) P.tPitch -= stats.air * 2 * dt;
        if (k.rollL()) P.tRoll -= stats.air * 1.5 * dt;
@@ -506,7 +531,7 @@ function stepPhysics(rawDt: number) {
       // Full turns are preserved so landing assistance does not erase trick rewards.
       const assist = k.level();
       const ease = 1 - Math.exp(-(assist ? AIR_LEVEL_RATE : 2.2) * dt);
-      if ((!up && !down) || assist) {
+      if (autoFlip === 0 && ((!up && !down) || assist)) {
         const angle = P.takeoffPitch + P.tPitch;
         P.tPitch += (Math.round(angle / TAU) * TAU - angle) * ease;
       }
@@ -902,6 +927,22 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
         game.popup(p.flat ? "BOOST" : "BOOST RAMP", "cool");
         P.padT = 1.5;
         P.speed = Math.max(P.speed, P.topEff * 1.05);
+        let hit = 0;
+        for (let j = 0; j < runState.usedPads.length; j++) hit += runState.usedPads[j];
+        questDone(questProgress("pads", hit));
+      }
+    }
+
+    for (let i = 0; i < SPLITS.length; i++) {
+      const sp = SPLITS[i];
+      if (P.lastS < sp.s && ns >= sp.s && splitNow[i] === undefined) {
+        const t = P.runTime;
+        splitNow[i] = t;
+        const pb = splitPB[i];
+        if (pb > 0) {
+          const d = t - pb;
+          game.popup(`${sp.name} ${t.toFixed(2)}s`, d <= 0 ? "cool" : "bad", `${d <= 0 ? "-" : "+"}${Math.abs(d).toFixed(2)}s vs best`);
+        } else game.popup(`${sp.name} ${t.toFixed(2)}s`, "cool", "First split recorded");
       }
     }
 
@@ -911,6 +952,10 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
       const bonus = 50 + Math.max(0, Math.round((90 - time) * 3));
       award(bonus);
       const isBest = useSave.getState().recordRun(time, P.runTricks);
+      saveSplitPB(SPLITS.map((_, i) => {
+        const now = splitNow[i]; const pb = splitPB[i] || 0;
+        return now === undefined ? pb : pb > 0 ? Math.min(pb, now) : now;
+      }));
       audio.play("finish");
       game.setMode("finished");
       game.setFinish({ time, wheels: P.runWheels, tricks: P.runTricks, bestCombo: P.bestCombo, isBest, bonus });

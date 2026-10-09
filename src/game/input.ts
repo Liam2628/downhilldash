@@ -12,6 +12,21 @@ export function bindInput() {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
     keys.add(e.code);
+    if (!e.repeat) {
+      const kb = useSave.getState().settings.keys;
+      for (const a of ["up", "down"] as const) if ((kb[a] ?? []).includes(e.code)) {
+        const now = performance.now();
+        if (now - lastTap[a] < 300) tapped[a] = now;
+        lastTap[a] = now;
+      }
+      if (e.code === "KeyV") {
+        const g = useGame.getState();
+        if (g.mode === "run" || g.mode === "hub") {
+          view.mode = (view.mode + 1) % 3;
+          g.popup(VIEW_NAMES[view.mode], "cool", "Press V to switch camera");
+        }
+      }
+    }
     if (GAME_KEYS.has(e.code)) e.preventDefault();
   };
   const up = (e: KeyboardEvent) => keys.delete(e.code);
@@ -26,7 +41,16 @@ export function bindInput() {
   };
 }
 
-import { useSave, type Action } from "./store";
+import { useGame, useSave, type Action } from "./store";
+import { view, VIEW_NAMES } from "./quests";
+
+const lastTap = { up: -1e9, down: -1e9 };
+const tapped = { up: -1e9, down: -1e9 };
+/** true once per fresh double-tap of W/S (within the last 0.25s) */
+export function doubleTap(a: "up" | "down") {
+  if (performance.now() - tapped[a] < 250) { tapped[a] = -1e9; return true; }
+  return false;
+}
 
 /** on-screen buttons */
 export const virtual = { boost: false };
