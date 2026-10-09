@@ -42,13 +42,18 @@ export function Game() {
     sync();
     const unsubscribeGame = useGame.subscribe(sync);
     const unsubscribeSave = useSave.subscribe(sync);
+    const wakeAudio = () => audio.init();
     window.addEventListener("pointerdown", music.resume);
     window.addEventListener("keydown", music.resume);
+    window.addEventListener("keydown", wakeAudio);
+    window.addEventListener("pointerdown", wakeAudio);
     return () => {
       unsubscribeGame();
       unsubscribeSave();
       window.removeEventListener("pointerdown", music.resume);
       window.removeEventListener("keydown", music.resume);
+      window.removeEventListener("keydown", wakeAudio);
+      window.removeEventListener("pointerdown", wakeAudio);
       music.dispose();
     };
   }, []);

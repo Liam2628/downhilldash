@@ -435,11 +435,12 @@ function mergeGeos(parts: THREE.BufferGeometry[]) {
 
 function Cones() {
   const body = useRef<THREE.InstancedMesh>(null);
+  const base = useRef<THREE.InstancedMesh>(null);
   const stripe = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
-    if (!body.current || !stripe.current) return;
+    if (!body.current || !stripe.current || !base.current) return;
     for (let i = 0; i < runState.cones.length; i++) {
       const st = runState.cones[i];
       dummy.position.set(st.x, st.y, st.z);
@@ -448,16 +449,22 @@ function Cones() {
       dummy.updateMatrix();
       body.current.setMatrixAt(i, dummy.matrix);
       stripe.current.setMatrixAt(i, dummy.matrix);
+      base.current.setMatrixAt(i, dummy.matrix);
     }
     body.current.instanceMatrix.needsUpdate = true;
     stripe.current.instanceMatrix.needsUpdate = true;
+    base.current.instanceMatrix.needsUpdate = true;
   });
-  const coneGeo = useMemo(() => new THREE.ConeGeometry(0.45, 1.2, 14).translate(0, 0.6, 0), []);
-  const stripeGeo = useMemo(() => new THREE.CylinderGeometry(0.25, 0.32, 0.22, 14).translate(0, 0.6, 0), []);
+  const coneGeo = useMemo(() => new THREE.CylinderGeometry(0.06, 0.4, 1.15, 16).translate(0, 0.7, 0), []);
+  const stripeGeo = useMemo(() => new THREE.CylinderGeometry(0.22, 0.29, 0.22, 16).translate(0, 0.72, 0), []);
+  const baseGeo = useMemo(() => new THREE.BoxGeometry(1.0, 0.14, 1.0).translate(0, 0.07, 0), []);
   return (
     <>
       <instancedMesh ref={body} args={[coneGeo, undefined, runState.cones.length]} castShadow frustumCulled={false}>
         <meshStandardMaterial color="#ff6a13" roughness={0.5} />
+      </instancedMesh>
+      <instancedMesh ref={base} args={[baseGeo, undefined, runState.cones.length]} castShadow frustumCulled={false}>
+        <meshStandardMaterial color="#e2540c" roughness={0.6} />
       </instancedMesh>
       <instancedMesh ref={stripe} args={[stripeGeo, undefined, runState.cones.length]} frustumCulled={false}>
         <meshStandardMaterial color="#ffffff" roughness={0.4} />

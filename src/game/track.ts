@@ -194,6 +194,9 @@ for (let i = 0; i < 6; i++) {
 }
 for (const s of [660, 668, 676]) for (const xo of [-6, 6]) CONES.push({ s, xo });
 for (let i = 0; i < 8; i++) CONES.push({ s: 1345 + i * 4, xo: -7 + i * 2 });
+// Crash-for-fun cone field right after the finish line
+for (let r = 0; r < 8; r++) for (let c = 0; c < 9; c++)
+  CONES.push({ s: FINISH + 12 + r * 4, xo: -8 + c * 2 + (r % 2 ? 1 : 0) });
 
 export const BARRIERS: Barrier[] = [];
 {

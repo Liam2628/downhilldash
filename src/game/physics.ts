@@ -83,7 +83,7 @@ export const P = {
   electric: false,
 };
 
-export type ConeState = { x: number; y: number; z: number; vx: number; vz: number; rot: number; tilt: number; home: [number, number] };
+export type ConeState = { x: number; y: number; z: number; vx: number; vz: number; rot: number; tilt: number; home: [number, number]; away?: number };
 function makeCones(): ConeState[] {
   const out: ConeState[] = [];
   for (const cn of CONES) {
@@ -692,11 +692,25 @@ function stepPhysics(rawDt: number) {
 
   stepCones(dt);
   const ns = -P.z;
+  // Stuck at a loop for 3s+: put the car back on clear road before it.
+  const nearLoop = LOOPS.find((l) => Math.abs(ns - l.s) < 30);
+  if (nearLoop && Math.abs(P.speed) < 2.5) {
+    loopStuckT += dt;
+    if (loopStuckT >= 3) {
+      loopStuckT = 0;
+      const rs = nearLoop.s - 40;
+      P.x = cAt(rs); P.z = -rs; P.y = hAt(rs) + 0.5;
+      P.yaw = roadYaw(rs); P.speed = 0; P.vy = 0; P.lateral = 0;
+      P.pitch = 0; P.roll = 0; P.grounded = true; P.loop = null; P.snapCam = true;
+      game.popup("UNSTUCK", "cool", "Moved back before the loop");
+    }
+  } else loopStuckT = 0;
   events(ns, mode, stats, game);
   P.lastS = ns;
   publish(dt, mode);
 }
 
+let loopStuckT = 0;
 function stepCones(dt: number) {
   const cones = runState.cones;
   const vx = Math.sin(P.yaw) * P.speed;
@@ -749,7 +763,14 @@ function stepCones(dt: number) {
     } else if (c.tilt > 0 && c.tilt < Math.PI / 2) {
       c.tilt = Math.max(0, c.tilt - dt * 2);
     }
-    c.y = solidY(-c.z, c.x).y;
+    // knocked-over cones respawn at home once the car is well away
+    const moved = Math.abs(c.x - c.home[0]) + Math.abs(c.z - c.home[1]) > 1.5;
+    if (moved && sp < 0.05 && Math.hypot(c.home[0] - P.x, c.home[1] - P.z) > 30) {
+      c.away = (c.away || 0) + dt;
+      if (c.away > 4) { c.x = c.home[0]; c.z = c.home[1]; c.vx = c.vz = 0; c.tilt = 0; c.away = 0; }
+    } else c.away = 0;
+    // sit slightly in the ground; lie lower when knocked on the side
+    c.y = solidY(-c.z, c.x).y - 0.06 - 0.32 * Math.sin(c.tilt);
   }
 }
 
@@ -769,7 +790,7 @@ function stepLoop(dt: number) {
     P.grounded = false; resetAir();
     P.vy = v * Math.sin(loop.th);
     P.speed = v * Math.cos(loop.th);
-    P.yaw = Math.PI; P.roll = 0;
+    P.yaw = roadYaw(lp.s); P.roll = 0;
     P.loopFallT = 1.2;
     useGame.getState().popup("FELL OFF THE LOOP", "bad", "Hold W to stay on");
     return;
@@ -878,7 +899,7 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
           (P.grounded || Math.abs(P.y - (hAt(ns) + padAdd(ns, dxc))) < 1.6)) {
         runState.usedPads[i] = 1;
         audio.play("pad");
-        game.popup("BOOST RAMP", "cool");
+        game.popup(p.flat ? "BOOST" : "BOOST RAMP", "cool");
         P.padT = 1.5;
         P.speed = Math.max(P.speed, P.topEff * 1.05);
       }

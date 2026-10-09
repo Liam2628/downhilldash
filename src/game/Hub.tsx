@@ -510,16 +510,12 @@ function StatsBoard() {
 }
 
 function Props() {
-  const cone = useGLTF("/models/cone.glb").scene;
   const box = useGLTF("/models/box.glb").scene;
   const amb = useGLTF("/models/ambulance.glb").scene;
   const truck = useGLTF("/models/truck.glb").scene;
   const taxi = useGLTF("/models/taxi.glb").scene;
   return (
     <>
-      {[[-24, 22], [-24, 26], [-24, 46], [-24, 42], [24, 22], [24, 46]].map(([x, z], i) => (
-        <Clone key={i} object={cone} position={[x, 0, z]} scale={2} />
-      ))}
       {[[-52, 52], [-50, 54], [-51, 50.5]].map(([x, z], i) => (
         <Clone key={i} object={box} position={[x, i === 2 ? 0 : 0, z]} scale={2.2} rotation-y={i} />
       ))}

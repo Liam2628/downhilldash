@@ -59,7 +59,7 @@ export function keyLabel(code: string) {
   if (code.startsWith("Digit")) return code.slice(5);
   const map: Record<string, string> = {
     ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
-    ShiftLeft: "L-SHIFT", ShiftRight: "R-SHIFT", ControlLeft: "L-CTRL", ControlRight: "R-CTRL",
+    ShiftLeft: "SHIFT", ShiftRight: "SHIFT", ControlLeft: "L-CTRL", ControlRight: "R-CTRL",
     AltLeft: "L-ALT", AltRight: "R-ALT", Space: "SPACE", Enter: "ENTER", Tab: "TAB",
   };
   return map[code] ?? code.replace("Numpad", "NUM ").toUpperCase();
