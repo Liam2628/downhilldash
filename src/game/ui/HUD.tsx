@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { QUESTS, useQuests } from "../quests";
 import { useGame, useSave } from "../store";
 import { audio } from "../audio";
 import { returnToLobby } from "../physics";
@@ -195,6 +196,28 @@ function Controls() {
   );
 }
 
+function QuestPanel() {
+  const run = useQuests((s) => s.run);
+  const best = useQuests((s) => s.best);
+  const done = useQuests((s) => s.done);
+  return (
+    <div className="pointer-events-none absolute left-4 top-24 w-64 rounded-xl border-2 border-panel-border bg-panel/90 p-3 text-panel-foreground shadow-[var(--shadow-chunky)]">
+      <div className="mb-2 font-display text-sm text-gold">DAILY QUESTS</div>
+      {QUESTS.map((q) => {
+        const v = Math.min(q.goal, Math.max(run[q.id], q.id === "combo" ? best[q.id] : run[q.id]));
+        return (
+          <div key={q.id} className={`mb-1.5 text-xs ${done[q.id] ? "opacity-60 line-through" : ""}`}>
+            <div className="flex justify-between gap-2"><span>{q.label}</span><span className="text-gold">+{q.reward}</span></div>
+            <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-panel-foreground/15">
+              <div className="h-full rounded-full bg-cool" style={{ width: `${(done[q.id] ? 1 : v / q.goal) * 100}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function useTouchDevice() {
   const [touch, setTouch] = useState(false);
   useEffect(() => {
@@ -364,6 +387,7 @@ export function HUD() {
               <Speedo />
               <Controls />
               <BoostButton />
+              <QuestPanel />
             </>
           )}
           {mode === "run" && <RunBar />}

@@ -147,7 +147,7 @@ const initial: Save = {
   trailUnlocked: false,
   upgrades: { engine: 0, nitro: 0, cooler: 0, grip: 0, magnet: 0 },
   settings: {
-    volume: 0.7,
+    volume: 1,
     muted: false,
     quality: "high",
     fov: 62,
