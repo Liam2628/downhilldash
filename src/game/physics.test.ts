@@ -109,7 +109,7 @@ describe("Phase 2 track collisions", () => {
       expect(P.wipe).toBe(0);
     }
     expect(exited).toBe(true);
-    for (let i = 0; i < 120; i++) { step(1 / 120); expect(P.wipe).toBe(0); }
+    for (let i = 0; i < 120; i++) { step(1 / 120); if(P.wipe > 0) console.log("EXIT HIT", P.x,P.y,P.z,P.pitch,P.loop,useGame.getState().popups); expect(P.wipe).toBe(0); }
     expect(-P.z).toBeGreaterThan(620);
   });
   it("has solid loop rails when steering into their edge", () => {
