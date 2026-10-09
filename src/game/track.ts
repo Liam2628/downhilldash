@@ -243,10 +243,11 @@ export const SCENERY_TREES: Tree[] = [];
 
 export function terrainY(s: number, dx: number) {
   const a = Math.abs(dx);
-  const base = hAt(Math.max(0, s)) - 0.25;
+  const base = hAt(Math.min(L + 4, Math.max(0, s))) - 0.25;
   if (a < HALF + 1.5) return base;
   const out = a - (HALF + 1.5);
-  return base + out * 0.18 + Math.sin(s / 23 + dx / 17) * Math.min(1, out / 20) * 3;
+  const far = Math.max(0, out - 200);
+  return base + out * 0.18 + far * 0.25 + Math.sin(s / 23 + dx / 17) * Math.min(1, out / 20) * 3 + Math.sin(s / 90 + dx / 60) * Math.min(1, far / 100) * 40;
 }
 
 {
@@ -270,8 +271,8 @@ export function terrainY(s: number, dx: number) {
         });
       }
       if (!downtown) {
-        for (let k = 0; k < 2; k++) {
-          const off = 16 + r() * 90;
+        for (let k = 0; k < 5; k++) {
+          const off = 16 + r() * 180;
           const dx = side * off;
           SCENERY_TREES.push({ x: cAt(s) + dx, y: terrainY(s, dx), z: -s - r() * 8, s: 0.8 + r() * 1.1 });
         }

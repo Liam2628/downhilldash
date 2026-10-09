@@ -67,7 +67,7 @@ function stripGeometry(
       const b = a + 1;
       const c2 = a + n;
       const d = c2 + 1;
-      idx.push(a, c2, b, b, c2, d);
+      idx.push(a, b, c2, b, d, c2);
     }
   }
   const g = new THREE.BufferGeometry();
@@ -147,13 +147,13 @@ function Walls() {
 
 function Terrain() {
   const geo = useMemo(() => {
-    const cols = [-220, -140, -90, -60, -40, -26, -18, -12, -10.5, 10.5, 12, 18, 26, 40, 60, 90, 140, 220];
+    const cols = [-700, -450, -300, -220, -140, -90, -60, -40, -26, -18, -12, -10.5, 10.5, 12, 18, 26, 40, 60, 90, 140, 220, 300, 450, 700];
     const grassA = new THREE.Color("#7fb04a");
     const grassB = new THREE.Color("#5f9a3c");
     const sand = new THREE.Color("#d9c08a");
     const rock = new THREE.Color("#9a8f80");
     const tmp = new THREE.Color();
-    return stripGeometry(-10, L + 260, 4, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
+    return stripGeometry(-260, L + 700, 4, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
       const a = Math.abs(dx);
       const downtown = s > 620 && s < 900;
       const base = downtown ? rock : s > 1240 ? sand : grassA;
