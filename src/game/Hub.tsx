@@ -11,6 +11,8 @@ import {
   plazaTexture,
   rollupTexture,
   signTexture,
+  woodTexture,
+  stoneTexture,
 } from "./textures";
 import { useSave } from "./store";
 
@@ -268,11 +270,11 @@ function Fence() {
     <>
       <instancedMesh ref={ref} args={[undefined, undefined, posts.length]} castShadow>
         <boxGeometry args={[0.3, 1.4, 0.3]} />
-        <meshStandardMaterial color="#8a5a34" roughness={0.9} />
+        <meshStandardMaterial map={woodTexture()} roughness={0.9} />
       </instancedMesh>
       <instancedMesh ref={rail} args={[undefined, undefined, posts.length]} castShadow>
         <boxGeometry args={[0.15, 0.25, 4.1]} />
-        <meshStandardMaterial color="#a8703f" roughness={0.9} />
+        <meshStandardMaterial map={woodTexture()} roughness={0.9} />
       </instancedMesh>
     </>
   );
@@ -472,30 +474,30 @@ function StatsBoard() {
         <group key={sd}>
           <mesh position={[sd * 3.05, 0.3, 0]} castShadow receiveShadow>
             <boxGeometry args={[0.9, 0.6, 0.9]} />
-            <meshStandardMaterial color="#8a8a86" roughness={0.9} />
+            <meshStandardMaterial map={stoneTexture()} roughness={0.95} />
           </mesh>
           <mesh position={[sd * 3.05, 3.9, 0]} castShadow>
             <boxGeometry args={[0.45, 7.2, 0.45]} />
-            <meshStandardMaterial color={wood} roughness={0.8} />
+            <meshStandardMaterial map={woodTexture()} roughness={0.85} />
           </mesh>
         </group>
       ))}
       {/* backing panel sits between the posts */}
       <mesh position={[0, 4.4, -0.05]} castShadow>
         <boxGeometry args={[5.65, 5.4, 0.2]} />
-        <meshStandardMaterial color={dark} roughness={0.85} />
+        <meshStandardMaterial map={woodTexture()} color={dark} roughness={0.85} />
       </mesh>
       {/* frame trim */}
       {[1.7 + 5.4 + 0.05, 1.7 - 0.05].map((y) => (
         <mesh key={y} position={[0, y, 0.08]} castShadow>
           <boxGeometry args={[5.65, 0.22, 0.18]} />
-          <meshStandardMaterial color={wood} roughness={0.8} />
+          <meshStandardMaterial map={woodTexture()} roughness={0.85} />
         </mesh>
       ))}
       {/* little roof cap */}
       <mesh position={[0, 7.65, 0]} castShadow>
         <boxGeometry args={[6.9, 0.25, 1.1]} />
-        <meshStandardMaterial color={dark} roughness={0.85} />
+        <meshStandardMaterial map={woodTexture()} color={dark} roughness={0.85} />
       </mesh>
       <mesh position={[0, 4.4, 0.07]}>
         <planeGeometry args={[5.3, 5.1]} />

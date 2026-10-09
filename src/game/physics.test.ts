@@ -3,7 +3,7 @@ vi.mock("./audio", () => ({ audio: { engine: vi.fn(), crash: vi.fn(), land: vi.f
 import { P, resetRun, step, teleport } from "./physics";
 import { keys } from "./input";
 import { useGame, useSave } from "./store";
-import { BARRIERS, RAMPS, LOOPS, cAt, hAt, loopPoint, roadYaw, surfaceY } from "./track";
+import { BARRIERS, RAMPS, LOOPS, PADS, cAt, hAt, loopPoint, loopSweep, padAdd, roadYaw, surfaceY } from "./track";
 
 function tick(seconds: number) { for (let i = 0; i < Math.round(seconds * 60); i++) step(1 / 60); }
 function road(s: number) {
@@ -20,6 +20,22 @@ beforeEach(() => {
 });
 
 describe("Phase 2 track collisions", () => {
+  it("sweeps both loop deck faces without colliding outside the visible width", () => {
+    for (const lp of LOOPS) for (const th of [0.4, 1.5, 3, 4.5, 5.8]) {
+      const p = loopPoint(lp, th);
+      const from = { x: p.x, y: p.y + Math.cos(th), z: p.z + Math.sin(th) };
+      const to = { x: p.x, y: p.y - Math.cos(th), z: p.z - Math.sin(th) };
+      expect(loopSweep(lp, from, to)?.th).toBeCloseTo(th);
+      expect(loopSweep(lp, { ...from, x: p.x + 6 }, { ...to, x: p.x + 6 })).toBeNull();
+    }
+  });
+  it("keeps five curved boost ramps and three flat strips", () => {
+    expect(PADS.filter(p => p.flat)).toHaveLength(3);
+    for (const p of PADS.filter(p => !p.flat)) {
+      expect(padAdd(p.s, p.xo)).toBeCloseTo(p.h * 0.25);
+      expect(padAdd(p.s, p.xo + p.w / 2)).toBeCloseTo(p.h * 0.25);
+    }
+  });
   it.each([12, 22, 40, 70, 100])("keeps barrier impacts bounded at %s m/s", (speed) => {
     const b = BARRIERS[0]; road(b.s - 7); P.x += b.xo; P.y = surfaceY(-P.z, P.x); P.speed = speed;
     let maxVy = 0;

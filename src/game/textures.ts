@@ -4,7 +4,9 @@ function canvas(w: number, h: number) {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
-  return [c, c.getContext("2d")!] as const;
+  const ctx = c.getContext("2d");
+  if (!ctx) throw new Error("Canvas textures require a 2D context");
+  return [c, ctx] as const;
 }
 
 function tex(c: HTMLCanvasElement, repeat = true) {
@@ -34,6 +36,41 @@ function cached(key: string, make: () => THREE.Texture) {
   }
   return t;
 }
+
+export const woodTexture = () => cached("wood", () => {
+  const [c, ctx] = canvas(256, 512);
+  ctx.fillStyle = "#9a7049"; ctx.fillRect(0, 0, 256, 512);
+  for (let x = 0; x < 256; x += 3) {
+    ctx.strokeStyle = x % 9 === 0 ? "rgba(60,32,15,0.3)" : "rgba(232,190,130,0.18)";
+    ctx.lineWidth = x % 9 === 0 ? 2 : 1;
+    ctx.beginPath();
+    for (let y = 0; y <= 512; y += 8) {
+      const gx = x + Math.sin(y / 35 + x / 16) * 2 + Math.sin(y / 81) * 3;
+      if (y === 0) ctx.moveTo(gx, y); else ctx.lineTo(gx, y);
+    }
+    ctx.stroke();
+  }
+  for (const [x, y] of [[58, 142], [185, 350]]) {
+    ctx.strokeStyle = "rgba(62,34,18,0.35)";
+    for (let r = 3; r < 18; r += 3) { ctx.beginPath(); ctx.ellipse(x, y, r / 2, r * 1.8, 0, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  speckle(ctx, 256, 512, 2500, 0.07);
+  return tex(c);
+});
+
+export const stoneTexture = () => cached("stone", () => {
+  const [c, ctx] = canvas(256, 256);
+  ctx.fillStyle = "#b7b9b3"; ctx.fillRect(0, 0, 256, 256);
+  speckle(ctx, 256, 256, 10000, 0.16);
+  for (let y = 0; y < 256; y += 64) {
+    ctx.strokeStyle = "rgba(52,57,53,0.22)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
+    for (let x = (y / 64 % 2) * 64; x < 256; x += 128) {
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 64); ctx.stroke();
+    }
+  }
+  return tex(c);
+});
 
 /** Concrete road: u across, v along. */
 export const roadTexture = () =>

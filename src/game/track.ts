@@ -153,8 +153,7 @@ export function padAdd(s: number, dx: number) {
     const start = p.s - p.len / 2;
     if (s >= start && s <= start + p.len && Math.abs(dx - p.xo) <= p.w / 2) {
       const t = (s - start) / p.len;
-      const edge = smooth(0, 1.5, p.w / 2 - Math.abs(dx - p.xo));
-      return p.h * t * t * edge;
+      return p.h * t * t;
     }
   }
   return 0;
