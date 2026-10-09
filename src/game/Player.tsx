@@ -22,6 +22,7 @@ export function Player() {
   const sun = useRef<THREE.DirectionalLight>(null);
   const turntable = useRef<THREE.Mesh>(null);
   const camLook = useRef(new THREE.Vector3(0, 1, 30));
+  const loopView = useRef(new THREE.Vector3());
   const { camera } = useThree();
 
   const mode = useGame((s) => s.mode);
@@ -115,22 +116,22 @@ export function Player() {
       tmpLook.set(P.x, P.y + 1.1, P.z);
       camLook.current.lerp(tmpLook, 1 - Math.exp(-10 * dt));
       fovTarget = 45;
-    } else if (P.loop) {
-      const lp = P.loop.lp;
-      tmpV.set(cAt(lp.s) + 34, hAt(lp.s) + lp.R + 3, -lp.s + 4);
-      cam.position.lerp(tmpV, 1 - Math.exp(-4 * dt));
-      tmpLook.set(P.x, P.y, P.z);
-      camLook.current.lerp(tmpLook, 1 - Math.exp(-10 * dt));
     } else {
+      // One continuous camera rig: blend into side view, then ease back after the exit.
+      P.loopCamera += ((P.loop ? 1 : 0) - P.loopCamera) * (1 - Math.exp(-(P.loop ? 4 : 2.5) * dt));
       const d = (8.5 + Math.min(4, Math.abs(P.speed) * 0.05)) * settings.camDist;
       const h = 3.6 * settings.camDist;
-      const fx = Math.sin(P.yaw);
-      const fz = Math.cos(P.yaw);
+      const fx = Math.sin(P.yaw); const fz = Math.cos(P.yaw);
       tmpV.set(P.x - fx * d, P.y + h + (P.grounded ? 0 : 1), P.z - fz * d);
-      // keep camera above ground
+      const lp = P.loop?.lp;
+      if (lp) loopView.current.set(cAt(lp.s) + 34, hAt(lp.s) + lp.R + 3, -lp.s + 4);
+      if (P.loopCamera > 0.001) tmpV.lerp(loopView.current, P.loopCamera);
       cam.position.lerp(tmpV, k);
-      tmpLook.set(P.x + fx * 4, P.y + 1.4, P.z + fz * 4);
-      camLook.current.lerp(tmpLook, 1 - Math.exp(-12 * dt));
+      tmpLook.set(P.x + fx * 4 * (1 - P.loopCamera), P.y + 1.4 * (1 - P.loopCamera), P.z + fz * 4 * (1 - P.loopCamera));
+      camLook.current.lerp(tmpLook, 1 - Math.exp(-10 * dt));
+    }
+    if (P.snapCam) {
+      cam.position.copy(tmpV); camLook.current.copy(tmpLook); P.snapCam = false;
     }
     cam.fov += (fovTarget - cam.fov) * (1 - Math.exp(-4 * dt));
     cam.updateProjectionMatrix();

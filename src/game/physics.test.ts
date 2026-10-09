@@ -3,7 +3,7 @@ vi.mock("./audio", () => ({ audio: { engine: vi.fn(), crash: vi.fn(), land: vi.f
 import { P, resetRun, step, teleport } from "./physics";
 import { keys } from "./input";
 import { useGame, useSave } from "./store";
-import { cAt, hAt, roadYaw } from "./track";
+import { BARRIERS, RAMPS, LOOPS, cAt, hAt, loopPoint, roadYaw, surfaceY } from "./track";
 
 function tick(seconds: number) { for (let i = 0; i < Math.round(seconds * 60); i++) step(1 / 60); }
 function road(s: number) {
@@ -17,6 +17,88 @@ beforeEach(() => {
   resetRun();
   teleport(0, 46, Math.PI);
   P.boostT = P.cooldownT = 0;
+});
+
+describe("Phase 2 track collisions", () => {
+  it.each([12, 22, 40, 70, 100])("keeps barrier impacts bounded at %s m/s", (speed) => {
+    const b = BARRIERS[0]; road(b.s - 7); P.x += b.xo; P.y = surfaceY(-P.z, P.x); P.speed = speed;
+    let maxVy = 0;
+    for (let i = 0; i < 120; i++) { step(1 / 120); maxVy = Math.max(maxVy, P.vy); expect(Number.isFinite(P.y)).toBe(true); }
+    expect(maxVy).toBeLessThanOrEqual(16);
+    expect(P.y - hAt(-P.z)).toBeLessThan(7);
+    if (speed >= 40) expect(-P.z).toBeGreaterThan(b.s + 3);
+    else expect(-P.z).toBeLessThan(b.s + 3);
+  });
+  it("lets an airborne car clear a barrier without hitting an invisible wall", () => {
+    const b = BARRIERS[0]; road(b.s - 5); P.x += b.xo; P.y += 5; P.grounded = false; P.speed = 50;
+    tick(0.2); expect(-P.z).toBeGreaterThan(b.s + 3); expect(P.wipe).toBe(0);
+  });
+  it.each([-8.5, -4.5, 0, 4.5, 8.5])("keeps ramp edge driving stable at offset %s", (offset) => {
+    for (const r of RAMPS) {
+      road(r.s - 2); P.x += offset; P.y = surfaceY(-P.z, P.x); P.speed = 50; keys.clear();
+      let airborne = false;
+      for (let i = 0; i < 240; i++) {
+        step(1 / 120); airborne ||= !P.grounded;
+        expect(Math.abs(P.roll)).toBeLessThan(0.2); expect(P.wipe).toBe(0); expect(Math.abs(P.vy)).toBeLessThan(40);
+        if (airborne) break;
+      }
+      expect(airborne).toBe(true);
+    }
+  });
+  it.each([60, 85, 110])("leaves a clear landing and reaction zone after a boosted Mega Jump at %s", (speed) => {
+    road(898); P.speed = speed; P.boostT = 2;
+    let leftGround = false; let landedS = 0;
+    for (let i = 0; i < 900; i++) {
+      step(1 / 120); leftGround ||= !P.grounded;
+      if (leftGround && P.grounded) { landedS = -P.z; break; }
+      expect(P.wipe).toBe(0);
+    }
+    expect(landedS).toBeGreaterThan(940);
+    expect(BARRIERS.find(b => b.s > landedS)?.s ?? 1180).toBeGreaterThan(landedS + P.speed * 0.8);
+    expect(Math.abs(P.x - cAt(-P.z))).toBeLessThan(8.71);
+  });
+  it.each([-0.5, 0, 0.5])("enters loops from angle %s without position snapping", (angle) => {
+    const lp = LOOPS[0]; const point = loopPoint(lp, 0);
+    teleport(point.x, point.z + 0.5, Math.PI + angle); useGame.setState({ mode: "run" }); P.speed = 40;
+    const x = P.x; const y = P.y; tick(0.03);
+    expect(P.loop).not.toBeNull(); expect(Math.abs(P.x - x)).toBeLessThan(2); expect(Math.abs(P.y - y)).toBeLessThan(1);
+  });
+  it("catches the loop deck when approaching airborne from the boost ramp", () => {
+    road(575); P.x = cAt(610) - 5; P.speed = 55; keys.add("KeyW");
+    let entered = false;
+    for (let i = 0; i < 300; i++) { step(1 / 120); entered ||= !!P.loop; if (entered) break; }
+    expect(entered).toBe(true);
+  });
+  it("makes loop steering and boost meaningful and exits continuously", () => {
+    const lp = LOOPS[0]; const point = loopPoint(lp, 0);
+    teleport(point.x, point.z, Math.PI); useGame.setState({ mode: "run" });
+    P.loop = { lp, th: 0.2, offset: 0, heading: 0 }; P.speed = 35;
+    keys.add("KeyA"); tick(0.4); expect(Math.abs(P.loop?.offset ?? 0)).toBeGreaterThan(0.2);
+    keys.clear(); const speed = P.speed; keys.add("ShiftLeft"); tick(0.1);
+    expect(P.boosting).toBe(true); expect(P.speed).toBeGreaterThan(speed);
+    keys.clear(); let exited = false;
+    for (let i = 0; i < 600; i++) {
+      const old = { x: P.x, y: P.y, z: P.z }; step(1 / 120);
+      expect(Math.hypot(P.x - old.x, P.y - old.y, P.z - old.z)).toBeLessThan(1.5);
+      if (!P.loop) { exited = true; break; }
+    }
+    expect(exited).toBe(true); expect(P.grounded).toBe(true); expect(P.wipe).toBe(0);
+  });
+  it("collides with the loop underside and finite support pillars", () => {
+    const lp = LOOPS[0]; const point = loopPoint(lp, Math.PI / 2);
+    teleport(point.x, point.z + 2, Math.PI); useGame.setState({ mode: "run" });
+    P.y = point.y; P.grounded = false; P.speed = 45; tick(0.1);
+    expect(P.wipe).toBeGreaterThan(0);
+    road(lp.s - 4); P.x = cAt(lp.s) + 9; P.speed = 40; tick(0.1); expect(P.wipe).toBeGreaterThan(0);
+    road(lp.s - 4); P.x = cAt(lp.s) + 9; P.y = hAt(lp.s) + 40; P.grounded = false; P.speed = 40;
+    tick(0.1); expect(P.wipe).toBe(0);
+  });
+  it("cancels a slow gate crossing and allows reversing into the hub facing downhill", () => {
+    teleport(0, 0.1, Math.PI); P.speed = 2; tick(0.1);
+    expect(useGame.getState().mode).toBe("run");
+    keys.add("KeyS"); tick(0.4); expect(useGame.getState().mode).toBe("hub");
+    const z = P.z; tick(0.4); expect(P.z).toBeGreaterThan(z); expect(P.yaw).toBeCloseTo(Math.PI);
+  });
 });
 
 describe("Phase 1 driving", () => {

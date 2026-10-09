@@ -3,6 +3,10 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import {
   BARRIERS,
+  BARRIER_DEPTH,
+  BARRIER_HEIGHT,
+  LOOP_WIDTH,
+  loopPoint,
   COINS,
   CONES,
   FINISH,
@@ -227,7 +231,7 @@ function Loops() {
     () =>
       LOOPS.map((lp) => {
         const seg = 120;
-        const width = 9;
+        const width = LOOP_WIDTH;
         const pos: number[] = [];
         const uv: number[] = [];
         const idx: number[] = [];
@@ -236,9 +240,10 @@ function Loops() {
         const h = hAt(lp.s);
         for (let i = 0; i <= seg; i++) {
           const th = (i / seg) * Math.PI * 2;
-          const xc = c - 5 + (10 * th) / (Math.PI * 2);
-          const y = h + lp.R - lp.R * Math.cos(th) + 0.02;
-          const z = -(lp.s + lp.R * Math.sin(th));
+          const point = loopPoint(lp, th);
+          const xc = point.x;
+          const y = point.y + 0.02;
+          const z = point.z;
           pos.push(xc - width / 2, y, z, xc + width / 2, y, z);
           const v = (th * lp.R) / 16;
           uv.push(0, v, 1, v);
@@ -302,18 +307,25 @@ function Pads() {
       const x = cAt(s) + p.xo;
       const y = hAt(s);
       const top = y + padAdd(s, p.xo) + 0.04;
-      positions.push(x - p.w / 2, y, -s, x - p.w / 2, top, -s, x + p.w / 2, top, -s, x + p.w / 2, y, -s);
-      const v = i / rows;
-      uvs.push(0, v, 0, v, 1, v, 1, v);
-    }
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < 3; j++) {
-        const a = i * 4 + j;
-        indices.push(a, a + 1, a + 4, a + 1, a + 5, a + 4);
+      for (let j = 0; j <= 10; j++) {
+        const dx = -p.w / 2 + p.w * j / 10;
+        positions.push(x + dx, y + padAdd(s, p.xo + dx) + 0.04, -s);
+        uvs.push(j / 10, i / rows);
       }
     }
-    const end = rows * 4;
-    indices.push(end, end + 3, end + 2, end, end + 2, end + 1);
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < 10; j++) {
+        const a = i * 11 + j;
+        indices.push(a, a + 11, a + 1, a + 1, a + 11, a + 12);
+      }
+    }
+    const end = rows * 11;
+    for (let j = 0; j <= 10; j++) {
+      const dx = -p.w / 2 + p.w * j / 10;
+      positions.push(cAt(p.s + p.len / 2) + p.xo + dx, hAt(p.s + p.len / 2), -(p.s + p.len / 2)); uvs.push(j / 10, 1);
+    }
+    const base = (rows + 1) * 11;
+    for (let j = 0; j < 10; j++) indices.push(end + j, base + j, end + j + 1, end + j + 1, base + j, base + j + 1);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
@@ -344,7 +356,14 @@ function Coins() {
   const spokes = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   // tire: fat cylinder on its side; tread: thin ribbed ring; rim: shiny disc; spokes: 5-arm star
-  const tireGeo = useMemo(() => new THREE.CylinderGeometry(0.72, 0.72, 0.42, 28, 1, true).rotateX(Math.PI / 2), []);
+  const tireGeo = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, 0.74, 0, Math.PI * 2, false);
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, 0.455, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+    return new THREE.ExtrudeGeometry(shape, { depth: 0.46, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.025, bevelSegments: 2, curveSegments: 28 }).translate(0, 0, -0.23);
+  }, []);
   const treadGeo = useMemo(() => new THREE.TorusGeometry(0.72, 0.06, 6, 28), []);
   const rimGeo = useMemo(() => new THREE.CylinderGeometry(0.46, 0.46, 0.44, 24).rotateX(Math.PI / 2), []);
   const spokeGeo = useMemo(() => {
@@ -445,29 +464,42 @@ function Cones() {
 
 function Barriers() {
   const ref = useRef<THREE.InstancedMesh>(null);
+  const caps = useRef<THREE.InstancedMesh>(null);
+  const geo = useMemo(() => {
+    // Low broad nose, narrower crown: a visible concrete obstacle, not a box wall.
+    const half = BARRIER_DEPTH / 2;
+    const profile = [[-half, 0], [-0.5, BARRIER_HEIGHT], [0.5, BARRIER_HEIGHT], [half, 0]];
+    const pos: number[] = []; const uv: number[] = []; const idx: number[] = [];
+    for (const x of [-0.5, 0.5]) for (const [z, y] of profile) { pos.push(x, y, z); uv.push((x + 0.5) * 2, z / BARRIER_DEPTH + 0.5); }
+    for (let i = 0; i < 3; i++) idx.push(i, i + 4, i + 1, i + 1, i + 4, i + 5);
+    idx.push(0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 3, 4, 3, 7, 4);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g;
+  }, []);
   useLayoutEffect(() => {
+    if (!ref.current || !caps.current) return;
     const d = new THREE.Object3D();
     BARRIERS.forEach((b, i) => {
-      d.position.set(cAt(b.s) + b.xo, hAt(b.s) + 0.6, -b.s);
-      d.rotation.set(0, Math.atan2(dcAt(b.s), -1), 0);
-      d.scale.set(b.w, 1, 1);
-      d.updateMatrix();
-      ref.current!.setMatrixAt(i, d.matrix);
+      d.position.set(cAt(b.s) + b.xo, hAt(b.s), -b.s);
+      d.rotation.set(0, 0, 0); d.scale.set(b.w, 1, 1); d.updateMatrix();
+      ref.current?.setMatrixAt(i, d.matrix);
+      d.position.y += BARRIER_HEIGHT + 0.035; d.scale.set(b.w - 0.3, 0.07, 0.65); d.updateMatrix();
+      caps.current?.setMatrixAt(i, d.matrix);
     });
-    ref.current!.instanceMatrix.needsUpdate = true;
+    ref.current.instanceMatrix.needsUpdate = true; caps.current.instanceMatrix.needsUpdate = true;
   }, []);
   const tex = useMemo(() => {
-    const t = chevronTexture("#ff3b30", "#f4f1ea").clone();
-    t.needsUpdate = true;
-    t.repeat.set(2, 0.5);
-    return t;
+    const t = chevronTexture("#ff3b30", "#f4f1ea").clone(); t.needsUpdate = true; t.repeat.set(2, 0.5); return t;
   }, []);
-  return (
-    <instancedMesh ref={ref} args={[undefined, undefined, BARRIERS.length]} castShadow receiveShadow>
-      <boxGeometry args={[1, 1.2, 1.2]} />
-      <meshStandardMaterial map={tex} roughness={0.6} />
+  return <>
+    <instancedMesh ref={ref} args={[geo, undefined, BARRIERS.length]} castShadow receiveShadow>
+      <meshStandardMaterial map={tex} roughness={0.85} side={THREE.DoubleSide} />
     </instancedMesh>
-  );
+    <instancedMesh ref={caps} args={[undefined, undefined, BARRIERS.length]} castShadow>
+      <boxGeometry args={[1, 1, 1]} /><meshStandardMaterial color="#e4e6ea" roughness={0.5} metalness={0.2} />
+    </instancedMesh>
+  </>;
 }
 
 function Scenery() {
