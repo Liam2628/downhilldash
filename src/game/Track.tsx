@@ -25,6 +25,10 @@ import {
   padAdd,
   rampAdd,
   terrainY,
+  terrainMeshY,
+  TERRAIN_COLS,
+  TERRAIN_DS,
+  TERRAIN_S0,
 } from "./track";
 import {
   chevronTexture,
@@ -151,13 +155,13 @@ function Walls() {
 
 function Terrain() {
   const geo = useMemo(() => {
-    const cols = [-700, -450, -300, -220, -140, -90, -60, -40, -26, -18, -12, -10.5, 10.5, 12, 18, 26, 40, 60, 90, 140, 220, 300, 450, 700];
+    const cols = TERRAIN_COLS;
     const grassA = new THREE.Color("#7fb04a");
     const grassB = new THREE.Color("#5f9a3c");
     const sand = new THREE.Color("#d9c08a");
     const rock = new THREE.Color("#9a8f80");
     const tmp = new THREE.Color();
-    return stripGeometry(-10, L + 700, 4, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
+    return stripGeometry(TERRAIN_S0, L + 700, TERRAIN_DS, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
       const a = Math.abs(dx);
       const downtown = s > 620 && s < 900;
       const base = downtown ? rock : s > 1240 ? sand : grassA;
@@ -723,7 +727,7 @@ function Rocks() {
       const side = r() < 0.5 ? -1 : 1;
       const dx = side * (14 + r() * 260);
       const sc = 0.6 + r() * r() * 6;
-      d.position.set(cAt(Math.min(s, L)) + dx, terrainY(s, dx) + sc * 0.2, -s);
+      { const x = cAt(Math.min(s, L)) + dx; d.position.set(x, terrainMeshY(x, -s) - sc * 0.15, -s); }
       d.rotation.set(r() * 3, r() * 3, r() * 3);
       d.scale.set(sc, sc * (0.5 + r() * 0.5), sc);
       d.updateMatrix();
