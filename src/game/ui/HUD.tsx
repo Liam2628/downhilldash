@@ -161,9 +161,11 @@ function Controls() {
           [drive, "Drive / steer"],
           [kb("boost"), "Boost"],
           ["AIR: " + kb("up") + "/" + kb("down"), "Flip"],
+          ["AIR: 2x " + kb("up") + "/" + kb("down"), "Auto front/back flip"],
            ["AIR: " + kb("spinL") + "/" + kb("spinR"), "Spin"],
           ["AIR: " + kb("rollL") + "/" + kb("rollR"), "Roll"],
            ["AIR: " + kb("level"), "Airbrake / level"],
+          ["V", "Camera view"],
           ["SPACE / R", "Back to lobby"],
         ]
       : [

@@ -963,9 +963,11 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
   }
 }
 
+let idleT = 0;
 function publish(dt: number, mode: string) {
   const speed01 = Math.min(1, Math.abs(P.speed) / 60);
-  if (mode !== "title" && mode !== "menu") audio.engine(speed01, P.boosting, true, P.electric);
+  idleT = Math.abs(P.speed) > 0.3 || P.boosting || anyDriveKey() ? 0 : idleT + dt;
+  if (mode !== "title" && mode !== "menu") audio.engine(speed01, P.boosting, idleT < 120, P.electric);
   hudAcc += dt;
   if (hudAcc < 0.08) return;
   hudAcc = 0;
@@ -990,4 +992,9 @@ function publish(dt: number, mode: string) {
     runWheels: P.runWheels,
     fps,
   });
+}
+
+function anyDriveKey() {
+  for (const k of keys) if (k !== "ShiftLeft" || true) return true;
+  return false;
 }
