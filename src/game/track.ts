@@ -67,7 +67,8 @@ function gradeAt(s: number) {
 
 function curveRaw(s: number) {
   let env = smooth(30, 100, s);
-  for (const lp of LOOPS) env *= smooth(35, 75, Math.abs(s - lp.s));
+  // A straight runoff gives drivers time to react after the loop camera blends back.
+  for (const lp of LOOPS) env *= smooth(65, 110, Math.abs(s - lp.s));
   env *= 1 - smooth(FINISH - 60, FINISH, s);
   return env * (26 * Math.sin((s - 60) / 150) + 9 * Math.sin((s - 60) / 61));
 }
