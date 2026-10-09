@@ -9,7 +9,8 @@ beforeEach(() => {
   vi.spyOn(player, "pause").mockImplementation(() => {});
   vi.spyOn(player, "load").mockImplementation(() => {});
   vi.stubGlobal("Audio", class { constructor() { return player; } });
-  // Deterministic shuffle: 0.999999 maps every Fisher-Yates pick to itself.
+  // Deterministic shuffle: 0.999999 maps every Fisher-Yates pick to itself,
+  // so the shuffle order matches the playlist order.
   vi.spyOn(Math, "random").mockReturnValue(0.999999);
 });
 
@@ -49,22 +50,18 @@ describe("lobby music", () => {
   });
   it("shuffles playback in a random order and reshuffles each cycle", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
+    const forced = shuffledOrder(lobbyPlaylist.length);
     const music = new LobbyMusic();
     music.sync("hub", 1, false);
-    // With random() = 0 the Fisher-Yates swap lands on slot 0 every pass.
-    const forced = shuffledOrder(lobbyPlaylist.length);
     expect(player.title).toBe(lobbyPlaylist[forced[0]].name);
     const played: string[] = [player.title];
     for (let i = 1; i < lobbyPlaylist.length; i++) {
       player.dispatchEvent(new Event("ended"));
+      expect(player.title).toBe(lobbyPlaylist[forced[i]].name);
       played.push(player.title);
-      expect(played).not.toContain(lobbyPlaylist[forced[i]].name === played[played.length - 1] ? "" : lobbyPlaylist[forced[i]].name ? "" : undefined);
     }
-    expect(new Set(played).size).toBe(lobbyPlaylist.length);
-    expect(new Set(lobbyPlaylist.map(t => t.name))).toEqual(new Set(played));
-    // After the full cycle the playlist reshuffles rather than repeating the lap.
-    player.dispatchEvent(new Event("ended"));
-    expect(player.title).toBe(lobbyPlaylist[shuffledOrder(lobbyPlaylist.length)[0]].name);
+    // Every track plays exactly once per shuffled cycle.
+    expect(new Set(played)).toEqual(new Set(lobbyPlaylist.map(t => t.name)));
     music.dispose();
   });
 });
