@@ -58,12 +58,12 @@ export const HUB_SOLIDS: { x: number; z: number; r: number; kind: "metal" | "woo
   { x: -51, z: 50.5, r: 1.4, kind: "wood" },
   { x: 20, z: 64, r: 3.2, kind: "wood" },
   { x: -18, z: 62 - 4.2, r: 0.6, kind: "metal" },
-  { x: -56, z: 70, r: 0.9, kind: "tree" },
-  { x: 56, z: 70, r: 0.9, kind: "tree" },
-  { x: -56, z: 10, r: 0.9, kind: "tree" },
-  { x: 56, z: 10, r: 0.9, kind: "tree" },
-  { x: -22, z: 90, r: 0.9, kind: "tree" },
-  { x: 22, z: 90, r: 0.9, kind: "tree" },
+  { x: -56, z: 70, r: 0.5, kind: "tree" },
+  { x: 56, z: 70, r: 0.5, kind: "tree" },
+  { x: -56, z: 10, r: 0.5, kind: "tree" },
+  { x: 56, z: 10, r: 0.5, kind: "tree" },
+  { x: -22, z: 90, r: 0.5, kind: "tree" },
+  { x: 22, z: 90, r: 0.5, kind: "tree" },
 ];
 
 export const HUB_CONES: [number, number][] = [
