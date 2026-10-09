@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] Add five renamed lobby-only music tracks, support future additions, and verify playback/mute/run transitions
+- [x] Add five renamed lobby-only music tracks with an extensible playlist; automated mute/mode/playlist tests pass and all audio URLs return successfully (audible playback not confirmed in headless browser)
 - [x] Phase 2: predictable traversable barriers, stable ramp edges and safer boosted blind jumps
 - [x] Phase 2: solid loop decks/supports, angled entry, steering/boost and smooth exit camera; straight exit runoff
 - [x] Phase 2: hub gate cancellation orientation and recovery
