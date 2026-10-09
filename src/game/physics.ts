@@ -5,8 +5,11 @@ import {
   BARRIER_DEPTH,
   BARRIER_HEIGHT,
   LOOP_WIDTH,
+  LOOP_RAIL_RADIUS,
+  LOOP_RAIL_HEIGHT,
   loopPoint,
   loopContact,
+  loopSweep,
   surfaceY,
   CONES,
   COINS,
@@ -327,8 +330,8 @@ function footprintBlocked(x: number, z: number, yaw: number, y: number) {
     const pz = z + Math.cos(yaw) * f - Math.sin(yaw) * r;
     for (const lp of LOOPS) {
       const base = hAt(lp.s);
-      if (y > base + lp.R * 2 + 2.3 || y + 1.4 < base) continue;
-      if (Math.abs(pz + lp.s) < 0.8 && Math.abs(Math.abs(px - cAt(lp.s)) - 9) < 0.8) return "pillar";
+      if (y > base + lp.R * 2 + 1 || y + 1.4 < base - 1) continue;
+      if (Math.abs(pz + lp.s) < 0.4 && Math.abs(Math.abs(px - cAt(lp.s)) - 9) < 0.4) return "pillar";
       if (Math.abs(pz + lp.s) < 0.8 && Math.abs(px - cAt(lp.s)) < 9.5 &&
           y + 1.4 > base + lp.R * 2 + 1.4 && y < base + lp.R * 2 + 2.2) return "pillar";
     }
@@ -344,21 +347,22 @@ export function step(rawDt: number) {
 }
 
 function collideLoopDeck(nx: number, nz: number, dt: number) {
-  if (P.loopFallT > 0) { P.loopFallT -= dt; return false; }
+  P.loopFallT = Math.max(0, P.loopFallT - dt);
   for (const lp of LOOPS) {
     if (Math.abs(-nz - lp.s) > lp.R + 3) continue;
     const nextY = P.y + P.vy * dt;
     const before = loopContact(lp, P.x, P.y, P.z);
     const after = loopContact(lp, nx, nextY, nz);
-    if (Math.abs(after.offset) > LOOP_WIDTH / 2 + 0.9) continue;
-    if (Math.abs(after.radial) < 0.9 && Math.abs(after.offset) > LOOP_WIDTH / 2 - 0.3 &&
+    const railDistance = Math.hypot(Math.abs(after.offset) - LOOP_WIDTH / 2, after.radial + LOOP_RAIL_HEIGHT);
+    if (railDistance < LOOP_RAIL_RADIUS + 0.55 &&
         Math.abs(before.offset) < Math.abs(after.offset)) {
       impact("metal", Math.abs(P.lateral) + Math.abs(P.speed) * 0.3, "Hit the loop rail");
       P.lateral = 0; return true;
     }
-    const crossing = before.radial * after.radial <= 0 || Math.abs(after.radial) < 0.28;
+    const hit = loopSweep(lp, P, { x: nx, y: nextY, z: nz });
+    const crossing = hit !== null || (Math.abs(after.radial) < 0.03 && Math.abs(after.offset) <= LOOP_WIDTH / 2);
     const entering = after.th < 1.45 && -nz > -P.z && P.speed > 8;
-    if (crossing && entering) {
+    if (crossing && entering && P.loopFallT <= 0) {
       P.loop = { lp, th: after.th, offset: Math.max(-3.3, Math.min(3.3, after.offset)),
         heading: wrap(P.yaw - Math.PI) };
       P.speed = Math.max(12, P.speed * Math.max(0.5, Math.cos(P.loop.heading)));
@@ -368,8 +372,10 @@ function collideLoopDeck(nx: number, nz: number, dt: number) {
       return true;
     }
     // Any other crossing hits the actual deck (including its underside), not an invisible box.
-    if (crossing && Math.abs(after.radial - before.radial) > 0.001 &&
-        after.th > 0.12 && after.th < TAU - 0.15) {
+    if (hit && Math.abs(after.radial - before.radial) > 0.001 &&
+        hit.th > 0.12 && hit.th < TAU - 0.15) {
+      // Only suppress immediate re-contact at the release point, not the entire loop.
+      if (P.loopFallT > 1.1 && hit.t < 0.05) continue;
       impact("metal", Math.abs(P.speed), "Hit the loop deck");
       P.vy = -P.vy * 0.2; P.lateral *= 0.4;
       return true;
