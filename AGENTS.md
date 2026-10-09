@@ -12,5 +12,7 @@
 - Boost ramp render geometry and vehicle collision share track height helpers, so visual ramps match the surface cars drive on.
 - Vehicle motion decomposes forward and lateral momentum with delta-time traction; the run mode enforces downhill progress while the hub supports reverse, keeping track rules separate from steering.
 - Air trick angles retain whole rotations during leveling so the rendered landing pose and trick scoring agree.
+- Track collision runs bounded 120 Hz substeps and shares loop paths and obstacle profiles with rendering to prevent tunneling and surface mismatches.
+- Loops constrain surface contact while retaining throttle, brake, lateral steering and boost; the camera keeps a cached side-view target through the exit to avoid discontinuities.
 
 - Dev-only devtools source tags are stripped from src/game and src/components .tsx files in vite.config.ts, because the 3D renderer crashes on dashed prop names.

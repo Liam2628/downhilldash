@@ -1,6 +1,13 @@
 import { carById, type CarStats } from "./data";
 import { useGame, useSave } from "./store";
 import {
+  BARRIERS,
+  BARRIER_DEPTH,
+  BARRIER_HEIGHT,
+  LOOP_WIDTH,
+  loopPoint,
+  loopContact,
+  surfaceY,
   CONES,
   COINS,
   FINISH,
@@ -28,6 +35,8 @@ const REVERSE_TOP = 10;
 const ROAD_GRIP = 11;
 const DRIFT_GRIP = 2.8;
 const AIR_LEVEL_RATE = 7;
+const BARRIER_OVER_SPEED = 28;
+const MAX_LAUNCH_VY = 16;
 
 export const P = {
   x: SPAWN.x,
@@ -47,7 +56,7 @@ export const P = {
   takeoffPitch: 0,
   wipe: 0,
   wipeSpin: 0,
-  loop: null as null | { lp: Loop; th: number },
+  loop: null as null | { lp: Loop; th: number; offset: number; heading: number },
   boostT: 0,
   cooldownT: 0,
   cooldownMax: 14,
@@ -67,6 +76,7 @@ export const P = {
   topEff: 40,
   boosting: false,
   landFlash: 0,
+  loopCamera: 0,
   snapCam: true,
   shake: 0,
   electric: false,
@@ -130,6 +140,7 @@ export function teleport(x: number, z: number, yaw: number) {
   P.vy = 0;
   P.grounded = true;
   P.loop = null;
+  P.loopCamera = 0;
   P.wipe = 0;
   P.wipeSpin = 0;
   P.pitch = 0;
@@ -178,7 +189,7 @@ const wrap = (a: number) => (((a + Math.PI) % TAU) + TAU) % TAU - Math.PI;
 const lerpAngle = (a: number, b: number, t: number) => a + wrap(b - a) * t;
 
 export function groundAt(x: number, z: number) {
-  return solidY(-z, x).y;
+  return surfaceY(-z, x);
 }
 
 function award(n: number) {
@@ -290,20 +301,62 @@ const FOOT: [number, number][] = [
 ];
 
 function footprintBlocked(x: number, z: number, yaw: number, y: number) {
-  const fx = Math.sin(yaw);
-  const fz = Math.cos(yaw);
   for (const [f, r] of FOOT) {
-    const px = x + fx * f + fz * r;
-    const pz = z + fz * f - fx * r;
-    const h = solidY(-pz, px);
-    // A wheelbase spans the slope ahead of the car. Its raised deck is not a wall.
-    // Only a genuinely high side face stops the vehicle.
-    if (h.y > y + (h.kind === "ramp" ? 3 : 0.7)) return h.kind ?? "concrete";
+    const px = x + Math.sin(yaw) * f + Math.cos(yaw) * r;
+    const pz = z + Math.cos(yaw) * f - Math.sin(yaw) * r;
+    for (const lp of LOOPS) {
+      const base = hAt(lp.s);
+      if (y > base + lp.R * 2 + 2.3 || y + 1.4 < base) continue;
+      if (Math.abs(pz + lp.s) < 0.8 && Math.abs(Math.abs(px - cAt(lp.s)) - 9) < 0.8) return "pillar";
+      if (Math.abs(pz + lp.s) < 0.8 && Math.abs(px - cAt(lp.s)) < 9.5 &&
+          y + 1.4 > base + lp.R * 2 + 1.4 && y < base + lp.R * 2 + 2.2) return "pillar";
+    }
   }
   return null;
 }
 
+// Bounded substeps keep narrow decks, barrier noses and supports from being skipped.
 export function step(rawDt: number) {
+  const elapsed = Math.max(0, Math.min(rawDt, 0.05));
+  const count = Math.max(1, Math.ceil(elapsed / (1 / 120)));
+  for (let i = 0; i < count; i++) stepPhysics(elapsed / count);
+}
+
+function collideLoopDeck(nx: number, nz: number, dt: number) {
+  for (const lp of LOOPS) {
+    if (Math.abs(-nz - lp.s) > lp.R + 3) continue;
+    const nextY = P.y + P.vy * dt;
+    const before = loopContact(lp, P.x, P.y, P.z);
+    const after = loopContact(lp, nx, nextY, nz);
+    if (Math.abs(after.offset) > LOOP_WIDTH / 2 + 0.9) continue;
+    if (Math.abs(after.radial) < 0.9 && Math.abs(after.offset) > LOOP_WIDTH / 2 - 0.3 &&
+        Math.abs(before.offset) < Math.abs(after.offset)) {
+      impact("metal", Math.abs(P.lateral) + Math.abs(P.speed) * 0.3, "Hit the loop rail");
+      P.lateral = 0; return true;
+    }
+    const crossing = before.radial * after.radial <= 0 || Math.abs(after.radial) < 0.28;
+    const entering = after.th < 1.45 && -nz > -P.z && P.speed > 8;
+    if (crossing && entering) {
+      P.loop = { lp, th: after.th, offset: Math.max(-3.3, Math.min(3.3, after.offset)),
+        heading: wrap(P.yaw - Math.PI) };
+      P.speed = Math.max(12, P.speed * Math.max(0.5, Math.cos(P.loop.heading)));
+      P.grounded = true; P.vy = 0; resetAir();
+      const point = loopPoint(lp, after.th, P.loop.offset);
+      P.x = point.x; P.y = point.y; P.z = point.z;
+      return true;
+    }
+    // Any other crossing hits the actual deck (including its underside), not an invisible box.
+    if (crossing && Math.abs(after.radial - before.radial) > 0.001 &&
+        after.th > 0.12 && after.th < TAU - 0.15) {
+      impact("metal", Math.abs(P.speed), "Hit the loop deck");
+      P.vy = -P.vy * 0.2; P.lateral *= 0.4;
+      return true;
+    }
+  }
+  return false;
+}
+
+function stepPhysics(rawDt: number) {
   const dt = Math.min(rawDt, 0.05);
   const game = useGame.getState();
   const mode = game.mode;
@@ -370,6 +423,12 @@ export function step(rawDt: number) {
     if (P.comboT <= 0) P.combo = 1;
   }
   if (mode === "run") P.runTime += dt;
+
+  if (mode === "run" && -P.z < 8 && k.down() && P.speed < 3) {
+    teleport(Math.max(-GATE_HALF + 2, Math.min(GATE_HALF - 2, P.x)), 4, Math.PI);
+    game.setMode("hub"); game.popup("RUN CANCELLED", "bad");
+    return;
+  }
 
   if (P.loop) {
     stepLoop(dt);
@@ -540,6 +599,28 @@ export function step(rawDt: number) {
     }
   }
 
+  if (mode === "run") {
+    for (const b of BARRIERS) {
+      const bs = -nz;
+      if (Math.abs(bs - b.s) > BARRIER_DEPTH / 2 + 1.8 || Math.abs(nx - cAt(bs) - b.xo) > b.w / 2 + 0.85) continue;
+      if (P.y > hAt(b.s) + BARRIER_HEIGHT + 0.1) continue;
+      if (P.grounded && P.speed >= BARRIER_OVER_SPEED) {
+        // A visible sloped nose converts a bounded amount of forward momentum to a hop.
+        P.grounded = false; P.vy = 8; P.speed *= 0.88; P.takeoffPitch = P.pitch;
+        P.airT = 0; P.tYaw = P.tPitch = P.tRoll = 0;
+        P.hitT = 0.25; audio.crash("barrier", 0.25);
+      } else if (!P.grounded && P.y > hAt(b.s) + BARRIER_HEIGHT - 0.15 && P.vy <= 0) {
+        land(hAt(b.s) + BARRIER_HEIGHT, stats);
+      } else if (P.hitT <= 0) {
+        impact("barrier", Math.abs(P.speed), "Hit a barrier");
+        nx = P.x; nz = P.z; P.lateral = 0;
+      } else { nx = P.x; nz = P.z; }
+    }
+    if (collideLoopDeck(nx, nz, dt)) {
+      stepCones(dt); publish(dt, mode); return;
+    }
+  }
+
   // ---------- solid obstacles: nothing passes through ----------
   const blockedBy = footprintBlocked(nx, nz, P.yaw, P.y);
   if (blockedBy) {
@@ -559,16 +640,11 @@ export function step(rawDt: number) {
           P.wallT = 0.35;
         }
       } else {
-         const kind: CrashKind = blockedBy === "barrier" ? "barrier" : blockedBy === "pillar" ? "metal" : "concrete";
-         impact(kind, Math.abs(P.speed), blockedBy === "barrier" ? "Hit a barrier" : blockedBy === "pillar" ? "Hit the loop pillar" : blockedBy === "ramp" ? "Hit the side of a ramp" : "Hit the road");
+        impact("metal", Math.abs(P.speed), "Hit the loop support");
         nx = P.x;
         nz = P.z;
         P.lateral = 0;
       }
-    } else if (blockedBy !== "pillar") {
-      // Unstick: lift onto whatever we're overlapping so the car isn't wedged.
-      const top = Math.max(groundAt(P.x, P.z), P.y);
-      P.y = Math.min(top + 0.4, P.y + 6 * dt);
     }
   }
 
@@ -581,7 +657,7 @@ export function step(rawDt: number) {
       P.airT = 0;
       P.tYaw = P.tPitch = P.tRoll = 0;
     } else {
-      P.vy = Math.max(-40, Math.min(40, (gNew - P.y) / dt));
+      P.vy = Math.max(-MAX_LAUNCH_VY, Math.min(MAX_LAUNCH_VY, (gNew - P.y) / dt));
       P.y = gNew;
     }
   }
@@ -675,38 +751,43 @@ function stepCones(dt: number) {
 }
 
 function stepLoop(dt: number) {
-  const L0 = P.loop;
-  if (!L0) return;
-  const { lp } = L0;
-  P.speed = Math.max(24, P.speed - 14 * Math.sin(L0.th) * dt + (P.boosting ? 20 * dt : 0));
-  L0.th += (P.speed / lp.R) * dt;
-  const th = Math.min(L0.th, TAU);
-  const c = cAt(lp.s);
-  P.x = c - 5 + (10 * th) / TAU;
-  P.y = hAt(lp.s) + lp.R - lp.R * Math.cos(th);
-  P.z = -(lp.s + lp.R * Math.sin(th));
-  P.yaw = Math.PI;
-  P.pitch = -th;
-  P.roll = 0;
-  collectCoins(currentStats().magnet);
-  if (L0.th >= TAU) {
+  const loop = P.loop;
+  if (!loop) return;
+  const { lp } = loop;
+  const stats = currentStats();
+  const st = (k.left() ? 1 : 0) - (k.right() ? 1 : 0);
+  P.steer += (st - P.steer) * (1 - Math.exp(-10 * dt));
+  loop.heading += (P.steer * stats.handling * 0.65 - loop.heading * 3) * dt;
+  loop.heading = Math.max(-0.65, Math.min(0.65, loop.heading));
+  P.lateral += (-Math.sin(loop.heading) * P.speed - P.lateral) * (1 - Math.exp(-6 * dt));
+  loop.offset += P.lateral * dt;
+  const limit = LOOP_WIDTH / 2 - 1.1;
+  if (Math.abs(loop.offset) > limit) {
+    loop.offset = Math.sign(loop.offset) * limit; P.lateral = 0; loop.heading *= 0.6;
+    if (P.wallT <= 0) { audio.crash("scrape", 0.3); P.wallT = 0.3; P.speed *= 0.98; }
+  }
+  const throttle = k.up() ? stats.accel * Math.max(0, 1 - P.speed / P.topEff) : 0;
+  P.speed += (throttle - 14 * Math.sin(loop.th) - P.speed * 0.05 + (P.boosting ? 26 : 0) - (k.down() ? BRAKE : 0)) * dt;
+  P.speed = Math.max(8, P.speed);
+  loop.th = Math.min(TAU, loop.th + P.speed * Math.cos(loop.heading) / lp.R * dt);
+  const point = loopPoint(lp, loop.th, loop.offset);
+  P.x = point.x; P.y = point.y; P.z = point.z;
+  P.yaw = Math.PI + loop.heading;
+  const pitchTarget = -loop.th;
+  P.pitch += (pitchTarget - P.pitch) * (1 - Math.exp(-18 * dt));
+  P.roll += (-P.steer * 0.08 - P.roll) * (1 - Math.exp(-10 * dt));
+  collectCoins(stats.magnet);
+  if (loop.th >= TAU) {
     P.loop = null;
-    P.pitch = 0;
-    P.x = c + 5;
-    P.z = -(lp.s + 0.6);
-    P.y = hAt(lp.s + 0.6);
-    P.yaw = roadYaw(lp.s);
-    P.grounded = true;
-    P.vy = 0;
-    P.lastS = lp.s + 0.6;
+    // Equivalent whole-turn pose avoids a visual reset; camera blend decays independently.
+    P.pitch = wrap(P.pitch); P.roll = 0;
+    P.z = -(lp.s + 0.6); P.y = surfaceY(lp.s + 0.6, P.x);
+    P.yaw = Math.PI + loop.heading;
+    P.grounded = true; P.vy = 0; P.lastS = lp.s + 0.6;
     const reward = Math.round(25 * P.combo);
-    award(reward);
-    P.runTricks += 1;
-    P.combo = Math.min(5, P.combo + 0.5);
-    P.bestCombo = Math.max(P.bestCombo, P.combo);
-    P.comboT = 5;
-    audio.play("loop");
-    useGame.getState().popup("LOOP DE LOOP!", "cool", `+${reward} wheels`);
+    award(reward); P.runTricks += 1;
+    P.combo = Math.min(5, P.combo + 0.5); P.bestCombo = Math.max(P.bestCombo, P.combo); P.comboT = 5;
+    audio.play("loop"); useGame.getState().popup("LOOP DE LOOP!", "cool", `+${reward} wheels`);
   }
 }
 
@@ -762,7 +843,7 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
     if (!hint && P.z < 14) hint = "Drive through the gate to start the run";
     game.setHint(hint);
 
-    if (P.lastS < 2 && ns >= 2) {
+    if (P.lastS < 0 && ns >= 0) {
       resetRun();
       game.setMode("run");
       game.setHint(null);
@@ -773,6 +854,7 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
 
   if (mode === "run") {
     if (ns < 0) {
+      teleport(P.x, 4, Math.PI);
       game.setMode("hub");
       game.popup("RUN CANCELLED", "bad");
       return;
@@ -793,14 +875,7 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
         P.speed = Math.max(P.speed, P.topEff * 1.05);
       }
     }
-    if (P.grounded) {
-      for (const lp of LOOPS) {
-        if (P.lastS < lp.s && ns >= lp.s) {
-          P.loop = { lp, th: 0 };
-          P.speed = Math.max(P.speed, 26);
-        }
-      }
-    }
+
 
     if (ns >= FINISH) {
       const time = P.runTime;

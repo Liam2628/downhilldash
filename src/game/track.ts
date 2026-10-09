@@ -10,6 +10,20 @@ export type Pad = { s: number; xo: number; len: number; h: number; w: number };
 export type Cone = { s: number; xo: number };
 export type Barrier = { s: number; xo: number; w: number };
 export type Coin = { x: number; y: number; z: number };
+export const LOOP_WIDTH = 9;
+export const BARRIER_DEPTH = 3.6;
+export const BARRIER_HEIGHT = 1.2;
+export function loopPoint(lp: Loop, th: number, offset = 0) {
+  return { x: cAt(lp.s) - 5 + 10 * th / (Math.PI * 2) + offset,
+    y: hAt(lp.s) + lp.R * (1 - Math.cos(th)), z: -lp.s - lp.R * Math.sin(th) };
+}
+export function loopContact(lp: Loop, x: number, y: number, z: number) {
+  const sy = y - hAt(lp.s) - lp.R;
+  const sz = -z - lp.s;
+  const th = (Math.atan2(sz, -sy) + Math.PI * 2) % (Math.PI * 2);
+  const center = loopPoint(lp, th);
+  return { th, radial: Math.hypot(sy, sz) - lp.R, offset: x - center.x };
+}
 
 export const LOOPS: Loop[] = [
   { s: 610, R: 11 },
@@ -53,7 +67,8 @@ function gradeAt(s: number) {
 
 function curveRaw(s: number) {
   let env = smooth(30, 100, s);
-  for (const lp of LOOPS) env *= smooth(35, 75, Math.abs(s - lp.s));
+  // A straight runoff gives drivers time to react after the loop camera blends back.
+  for (const lp of LOOPS) env *= smooth(65, 110, Math.abs(s - lp.s));
   env *= 1 - smooth(FINISH - 60, FINISH, s);
   return env * (26 * Math.sin((s - 60) / 150) + 9 * Math.sin((s - 60) / 61));
 }
@@ -87,12 +102,14 @@ export const RAMPS: Ramp[] = [
   { s: 722, len: 14, h: 3.2, xo: 4.5, w: 9 },
   { s: 770, len: 14, h: 3.2, xo: -4.5, w: 9 },
   { s: 830, len: 14, h: 3, xo: 0, w: 19 },
-  { s: 900, len: 28, h: 7.5, xo: 0, w: 19 },
+  { s: 900, len: 40, h: 6, xo: 0, w: 19 },
   { s: 1185, len: 12, h: 2.6, xo: 0, w: 16 },
   { s: 1380, len: 14, h: 3.5, xo: -4.5, w: 9 },
   { s: 1420, len: 16, h: 4, xo: 4.5, w: 9 },
   { s: 1490, len: 24, h: 6.5, xo: 0, w: 19 },
 ];
+// Launch decks span the driveable road; side-wheel height discontinuities are eliminated.
+for (const r of RAMPS) { r.xo = 0; r.w = HALF * 2; }
 
 export function rampAdd(s: number, dx: number) {
   for (const r of RAMPS) {
@@ -110,7 +127,8 @@ export function padAdd(s: number, dx: number) {
     const start = p.s - p.len / 2;
     if (s >= start && s <= start + p.len && Math.abs(dx - p.xo) <= p.w / 2) {
       const t = (s - start) / p.len;
-      return p.h * t * t;
+      const edge = smooth(0, 1.5, p.w / 2 - Math.abs(dx - p.xo));
+      return p.h * t * t * edge;
     }
   }
   return 0;
@@ -119,7 +137,17 @@ export function padAdd(s: number, dx: number) {
 export function surfaceY(s: number, x: number) {
   if (s < 0) return 0;
   const dx = x - cAt(s);
-  return hAt(s) + Math.max(rampAdd(s, dx), padAdd(s, dx));
+  return hAt(s) + Math.max(rampAdd(s, dx), padAdd(s, dx), barrierAdd(s, dx));
+}
+
+export function barrierAdd(s: number, dx: number) {
+  for (const b of BARRIERS) {
+    if (Math.abs(dx - b.xo) <= b.w / 2) {
+      const d = Math.abs(s - b.s);
+      if (d <= BARRIER_DEPTH / 2) return BARRIER_HEIGHT * Math.min(1, (BARRIER_DEPTH / 2 - d) / 1.3);
+    }
+  }
+  return 0;
 }
 
 export type SolidHit = { y: number; kind: "barrier" | "pillar" | "ramp" | null };
@@ -129,10 +157,7 @@ export function solidY(s: number, x: number): SolidHit {
   if (s < 0) return { y: base, kind: null };
   const dx = x - cAt(s);
   for (const b of BARRIERS) {
-    if (Math.abs(s - b.s) < 0.75 && Math.abs(dx - b.xo) < b.w / 2) return { y: hAt(b.s) + 1.2, kind: "barrier" };
-  }
-  for (const lp of LOOPS) {
-    if (Math.abs(s - lp.s) < 0.6 && Math.abs(Math.abs(dx) - 9) < 0.6) return { y: base + 99, kind: "pillar" };
+    if (Math.abs(s - b.s) < BARRIER_DEPTH / 2 && Math.abs(dx - b.xo) < b.w / 2) return { y: base, kind: "barrier" };
   }
   return { y: base, kind: rampAdd(s, dx) > 0 || padAdd(s, dx) > 0 ? "ramp" : null };
 }
@@ -173,7 +198,8 @@ export const BARRIERS: Barrier[] = [];
 {
   const r = rng(7);
   const lanes = [-6.5, 0, 6.5];
-  for (let s = 1010; s < 1160; s += 20) {
+  // A clear landing zone after Mega Jump precedes the slalom.
+  for (let s = 1130; s < 1175; s += 20) {
     const gap = Math.floor(r() * 3);
     lanes.forEach((xo, i) => {
       if (i !== gap) BARRIERS.push({ s, xo, w: 5.6 });
