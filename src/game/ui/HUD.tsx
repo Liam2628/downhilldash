@@ -213,6 +213,7 @@ function BoostButton() {
   const boostFrac = useGame((s) => s.hud.boostFrac);
   const release = () => (virtual.boost = false);
   const ready = boostState === "ready";
+  if (!touch) return null;
   return (
     <button
       aria-label="Boost"
