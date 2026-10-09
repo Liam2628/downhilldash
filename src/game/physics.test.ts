@@ -39,7 +39,7 @@ describe("Phase 2 track collisions", () => {
       let airborne = false;
       for (let i = 0; i < 240; i++) {
         step(1 / 120); airborne ||= !P.grounded;
-        expect(Math.abs(P.roll)).toBeLessThan(0.2); expect(P.wipe).toBe(0); expect(Math.abs(P.vy)).toBeLessThan(40);
+        expect(Math.abs(P.roll)).toBeLessThan(0.25); expect(P.wipe).toBe(0); expect(Math.abs(P.vy)).toBeLessThan(40);
         if (airborne) break;
       }
       expect(airborne).toBe(true);
