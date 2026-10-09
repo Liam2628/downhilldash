@@ -14,7 +14,7 @@ export function bindInput() {
     keys.add(e.code);
     if (!e.repeat) {
       const kb = useSave.getState().settings.keys;
-      for (const a of ["up", "down"] as const) if ((kb[a] ?? []).includes(e.code)) {
+      for (const a of ["up", "down", "left", "right"] as const) if ((kb[a] ?? []).includes(e.code)) {
         const now = performance.now();
         if (now - lastTap[a] < 300) tapped[a] = now;
         lastTap[a] = now;
@@ -44,10 +44,10 @@ export function bindInput() {
 import { useGame, useSave, type Action } from "./store";
 import { view, VIEW_NAMES } from "./quests";
 
-const lastTap = { up: -1e9, down: -1e9 };
-const tapped = { up: -1e9, down: -1e9 };
+const lastTap = { up: -1e9, down: -1e9, left: -1e9, right: -1e9 };
+const tapped = { up: -1e9, down: -1e9, left: -1e9, right: -1e9 };
 /** true once per fresh double-tap of W/S (within the last 0.25s) */
-export function doubleTap(a: "up" | "down") {
+export function doubleTap(a: "up" | "down" | "left" | "right") {
   if (performance.now() - tapped[a] < 250) { tapped[a] = -1e9; return true; }
   return false;
 }
