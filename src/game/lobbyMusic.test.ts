@@ -1,0 +1,48 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { LobbyMusic, isLobbyMusicMode } from "./lobbyMusic";
+import { lobbyPlaylist } from "./lobbyPlaylist";
+
+let player: HTMLAudioElement;
+beforeEach(() => {
+  player = document.createElement("audio");
+  vi.spyOn(player, "play").mockResolvedValue();
+  vi.spyOn(player, "pause").mockImplementation(() => {});
+  vi.spyOn(player, "load").mockImplementation(() => {});
+  vi.stubGlobal("Audio", class { constructor() { return player; } });
+});
+
+describe("lobby music", () => {
+  it("plays only in the hub and customization menus", () => {
+    expect(["title", "hub", "run", "menu", "finished"].map(mode => isLobbyMusicMode(mode as Parameters<typeof isLobbyMusicMode>[0]))).toEqual([false, true, false, true, false]);
+  });
+  it("starts in lobby, pauses immediately for runs and resumes on return", () => {
+    const music = new LobbyMusic();
+    music.sync("title", 1, false);
+    expect(player.play).not.toHaveBeenCalled();
+    music.sync("hub", 1, false);
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(player.volume).toBe(0.35);
+    music.sync("run", 1, false);
+    expect(player.pause).toHaveBeenCalledTimes(1);
+    music.sync("menu", 1, false);
+    expect(player.play).toHaveBeenCalledTimes(2);
+    music.dispose();
+  });
+  it("respects mute and loops all five renamed tracks", () => {
+    const music = new LobbyMusic();
+    music.sync("hub", 0.5, true);
+    expect(player.play).not.toHaveBeenCalled();
+    expect(player.muted).toBe(true);
+    music.sync("hub", 0.5, false);
+    expect(player.volume).toBe(0.175);
+    for (let i = 0; i < lobbyPlaylist.length; i++) {
+      expect(player.title).toBe(`Lobby Music ${i + 1}`);
+      player.dispatchEvent(new Event("ended"));
+    }
+    expect(player.title).toBe("Lobby Music 1");
+    music.dispose();
+    const count = vi.mocked(player.play).mock.calls.length;
+    player.dispatchEvent(new Event("ended"));
+    expect(player.play).toHaveBeenCalledTimes(count);
+  });
+});
