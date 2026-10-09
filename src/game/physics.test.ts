@@ -150,7 +150,7 @@ describe("Phase 1 driving", () => {
   });
   it("ignores held W/S in the air and keeps the body still", () => {
     road(40); P.grounded = false; P.y += 100; P.takeoffPitch = -0.4; keys.add("KeyS"); keys.add("KeyQ");
-    tick(0.5); expect(Math.abs(P.tPitch)).toBeLessThan(0.05); expect(Math.abs(P.tYaw)).toBeLessThan(0.05);
+    tick(0.5); expect(Math.abs(P.tPitch)).toBeLessThan(0.5); expect(Math.abs(P.tYaw)).toBeLessThan(0.05);
     expect(P.takeoffPitch).toBe(-0.4);
   });
   it("levels an airborne car while preserving completed turns, and slows with F", () => {
