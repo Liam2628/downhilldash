@@ -6,6 +6,7 @@ import { CarModel, type CarHandle } from "./CarModel";
 import { P, step } from "./physics";
 import { useGame, useSave } from "./store";
 import { orbit } from "./input";
+import { view } from "./quests";
 import { cAt, hAt } from "./track";
 
 const tmpV = new THREE.Vector3();
@@ -119,15 +120,18 @@ export function Player() {
     } else {
       // One continuous camera rig: blend into side view, then ease back after the exit.
       P.loopCamera += ((P.loop ? 1 : 0) - P.loopCamera) * (1 - Math.exp(-(P.loop ? 4 : 2.5) * dt));
-      const d = (8.5 + Math.min(4, Math.abs(P.speed) * 0.05)) * settings.camDist;
-      const h = 3.6 * settings.camDist;
+      const far = view.mode === 1 ? 1.6 : 1;
+      const hood = view.mode === 2;
+      const d = hood ? -0.4 : (8.5 + Math.min(4, Math.abs(P.speed) * 0.05)) * settings.camDist * far;
+      const h = hood ? 1.35 : 3.6 * settings.camDist * (view.mode === 1 ? 1.45 : 1);
       const fx = Math.sin(P.yaw); const fz = Math.cos(P.yaw);
-      tmpV.set(P.x - fx * d, P.y + h + (P.grounded ? 0 : 1), P.z - fz * d);
+      tmpV.set(P.x - fx * d, P.y + h + (P.grounded || hood ? 0 : 1), P.z - fz * d);
       const lp = P.loop?.lp;
       if (lp) loopView.current.set(cAt(lp.s) + 34, hAt(lp.s) + lp.R + 3, -lp.s + 4);
       if (P.loopCamera > 0.001) tmpV.lerp(loopView.current, P.loopCamera);
-      cam.position.lerp(tmpV, k);
-      tmpLook.set(P.x + fx * 4 * (1 - P.loopCamera), P.y + 1.4 * (1 - P.loopCamera), P.z + fz * 4 * (1 - P.loopCamera));
+      cam.position.lerp(tmpV, hood && P.loopCamera < 0.01 ? 1 : k);
+      const ahead = hood ? 14 : 4;
+      tmpLook.set(P.x + fx * ahead * (1 - P.loopCamera), P.y + (hood ? 1.1 : 1.4) * (1 - P.loopCamera), P.z + fz * ahead * (1 - P.loopCamera));
       camLook.current.lerp(tmpLook, 1 - Math.exp(-10 * dt));
     }
     if (P.snapCam) {
