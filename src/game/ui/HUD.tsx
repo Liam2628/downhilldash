@@ -9,6 +9,7 @@ import { Settings2, Volume2, VolumeX, X, Zap } from "lucide-react";
 import { keyLabel, virtual } from "../input";
 import type { Action } from "../store";
 import { DailyChest } from "./DailyChest";
+import tireLogo from "@/assets/tire-logo.png";
 
 function fmtTime(t: number) {
   const m = Math.floor(t / 60);
@@ -263,7 +264,13 @@ function TitleScreen() {
       <div className="animate-title-bob text-center">
         <div className="font-display text-sm tracking-[0.4em] text-panel-foreground text-outline">A DOWNHILL STUNT SIMULATOR</div>
         <h1 className="font-display text-6xl leading-[1.05] text-panel-foreground text-outline sm:text-7xl md:text-9xl">
-          DOWNHILL
+          D
+          <img
+            src={tireLogo}
+            alt="O"
+            className="mx-[-0.08em] inline-block h-[0.95em] w-[0.95em] translate-y-[0.08em] rounded-full object-cover align-baseline"
+          />
+          WNHILL
           <br />
           <span className="inline-block skew-x-[-9deg] text-hot">DASH</span>
         </h1>
