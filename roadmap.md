@@ -20,3 +20,14 @@
 - [x] Daily Rewards: readable from all sides, chest popup w/ blur, weighted 100-1500 (usually 130-250)
 - [ ] Space returns to lobby
 - [ ] Don't get stuck between ramps
+
+## Cone/loop/polish batch (Oct 9)
+- [x] One nice cone model everywhere, with collisions, respawn, sunk into ground; cone field after finish
+- [x] Loop drop-off yaw fix; unstuck after 3s near a loop
+- [x] Flat pads say "BOOST"; keybind shows "SHIFT"; boost button touch-only; stats board line removed
+- [x] Audio wakes on any key press
+- [ ] Loop collisions match geometry more closely
+- [ ] Revert boost ramp look to version 2
+- [ ] Double-tap W/S auto front/back flips
+- [ ] Wood/stone texturing polish; ramp seam camera jitter
+- [ ] C camera toggle; split times vs PB; daily quests
