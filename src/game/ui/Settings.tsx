@@ -8,10 +8,6 @@ const ACTIONS: { a: Action; label: string }[] = [
   { a: "left", label: "Steer left" },
   { a: "right", label: "Steer right" },
   { a: "boost", label: "Boost" },
-  { a: "spinL", label: "Spin left (air)" },
-  { a: "spinR", label: "Spin right (air)" },
-  { a: "rollL", label: "Roll left (air)" },
-  { a: "rollR", label: "Roll right (air)" },
   { a: "level", label: "Airbrake / level (air)" },
 ];
 

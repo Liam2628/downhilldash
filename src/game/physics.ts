@@ -131,8 +131,9 @@ function resetAir() {
   P.tRoll = 0;
   P.airT = 0;
   P.takeoffPitch = 0;
-  autoFlip = 0;
+  autoFlip = 0; autoRoll = 0;
 }
+let autoRoll = 0;
 let autoFlip = 0; // radians of automatic flip left (sign = direction)
 let runBackflips = 0;
 let splitPB: number[] = [];
@@ -512,8 +513,6 @@ function stepPhysics(rawDt: number) {
     P.speed *= Math.exp(-0.05 * dt);
     if (P.boosting) P.speed += 10 * dt;
     if (controls) {
-      const spin = (k.spinL() ? 1 : 0) - (k.spinR() ? 1 : 0);
-      P.tYaw += spin * stats.air * 1.35 * dt;
       // a little air steering so you can line up landings
       P.yaw += st * stats.handling * 0.35 * dt;
       if (doubleTap("up")) { autoFlip = TAU; audio.play("trick"); }
@@ -523,23 +522,27 @@ function stepPhysics(rawDt: number) {
         P.tPitch += stepA; autoFlip -= stepA;
         if (Math.abs(autoFlip) < 1e-4) autoFlip = 0;
       }
-      if (up) P.tPitch += stats.air * 2 * dt;
-      if (down) P.tPitch -= stats.air * 2 * dt;
-       if (k.rollL()) P.tRoll -= stats.air * 1.5 * dt;
-       if (k.rollR()) P.tRoll += stats.air * 1.5 * dt;
+      // Double-press A/D for a barrel roll in that direction; holding W/S does nothing in the air.
+      if (doubleTap("left")) { autoRoll -= TAU; audio.play("trick"); }
+      if (doubleTap("right")) { autoRoll += TAU; audio.play("trick"); }
+      if (autoRoll !== 0) {
+        const stepR = Math.min(Math.abs(autoRoll), (TAU / 0.7) * dt) * Math.sign(autoRoll);
+        P.tRoll += stepR; autoRoll -= stepR;
+        if (Math.abs(autoRoll) < 1e-4) autoRoll = 0;
+      }
       // Release trick keys to ease toward the nearest full rotation; F levels faster.
       // Full turns are preserved so landing assistance does not erase trick rewards.
       const assist = k.level();
       const ease = 1 - Math.exp(-(assist ? AIR_LEVEL_RATE : 2.2) * dt);
-      if (autoFlip === 0 && ((!up && !down) || assist)) {
+      if (autoFlip === 0) {
         const angle = P.takeoffPitch + P.tPitch;
         P.tPitch += (Math.round(angle / TAU) * TAU - angle) * ease;
       }
-      if ((!k.rollL() && !k.rollR()) || assist) {
+      if (autoRoll === 0) {
         const angle = P.roll + P.tRoll;
         P.tRoll += (Math.round(angle / TAU) * TAU - angle) * ease;
       }
-      if ((!k.spinL() && !k.spinR()) || assist) P.tYaw += (Math.round(P.tYaw / TAU) * TAU - P.tYaw) * ease;
+      P.tYaw += (Math.round(P.tYaw / TAU) * TAU - P.tYaw) * ease;
       if (assist) {
         P.speed *= Math.exp(-0.65 * dt);
         P.lateral *= Math.exp(-5 * dt);
