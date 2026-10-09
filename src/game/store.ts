@@ -1,6 +1,78 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { UpgradeId } from "./data";
+import { CARS, type UpgradeId } from "./data";
+
+// --- Save integrity -------------------------------------------------------
+// The save lives in localStorage, which anyone can edit by hand. To stop a
+// hand-edited balance from being trusted, every write is signed with a hash
+// of the payload plus a per-install secret salt. On load the signature is
+// re-computed; a mismatch (or any out-of-range value) discards the save.
+
+const SALT_KEY = "downhill-dash-salt";
+
+function getSalt(): string {
+  let salt = localStorage.getItem(SALT_KEY);
+  if (!salt) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    salt = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(SALT_KEY, salt);
+  }
+  return salt;
+}
+
+// FNV-1a over the payload twice with the salt — not cryptographic, but it
+// means a tampered payload no longer matches its stored signature.
+function sign(payload: string): string {
+  const salt = getSalt();
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  const s = salt + payload + salt;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = (Math.imul(h2, 31) + c) >>> 0;
+  }
+  return h1.toString(36) + h2.toString(36);
+}
+
+type Wrapped = { v: string; sig: string };
+
+const signedStorage = {
+  getItem: (name: string): string | null => {
+    const raw = localStorage.getItem(name);
+    if (!raw) return null;
+    try {
+      const w = JSON.parse(raw) as Wrapped;
+      if (typeof w.v !== "string" || typeof w.sig !== "string") return null;
+      if (sign(w.v) !== w.sig) return null; // tampered — drop the save
+      return w.v;
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    localStorage.setItem(name, JSON.stringify({ v: value, sig: sign(value) } satisfies Wrapped));
+  },
+  removeItem: (name: string) => localStorage.removeItem(name),
+};
+
+// Clamp anything loaded from storage into known-safe ranges.
+const CAR_IDS = new Set(CARS.map((c) => c.id));
+const clampInt = (n: unknown, min: number, max: number, fallback: number) =>
+  typeof n === "number" && Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+
+function sanitizeSave(p: Partial<Save>): Partial<Save> {
+  const out: Partial<Save> = { ...p };
+  out.wheels = clampInt(p.wheels, 0, 9_999_999, 0);
+  out.owned = Array.isArray(p.owned) ? p.owned.filter((id) => CAR_IDS.has(id)) : initial.owned;
+  if (out.owned.length === 0) out.owned = initial.owned;
+  out.selected = typeof p.selected === "string" && out.owned.includes(p.selected) ? p.selected : out.owned[0];
+  out.best = typeof p.best === "number" && Number.isFinite(p.best) && p.best > 0 ? p.best : null;
+  out.bestTricks = clampInt(p.bestTricks, 0, 9_999_999, 0);
+  out.runs = clampInt(p.runs, 0, 9_999_999, 0);
+  return out;
+}
 
 export type Settings = {
   volume: number; // 0..1
@@ -104,8 +176,11 @@ export const useSave = create<Save & SaveActions>()(
       },
       buyCar: (id, price) => {
         const s = get();
-        if (s.owned.includes(id) || s.wheels < price) return false;
-        set({ wheels: s.wheels - price, owned: [...s.owned, id], selected: id });
+        // Derive the price from the car catalog instead of trusting the caller.
+        const car = CARS.find((c) => c.id === id);
+        if (!car || car.price !== price) return false;
+        if (s.owned.includes(id) || s.wheels < car.price) return false;
+        set({ wheels: s.wheels - car.price, owned: [...s.owned, id], selected: id });
         return true;
       },
       selectCar: (id) => {
@@ -145,9 +220,9 @@ export const useSave = create<Save & SaveActions>()(
     }),
     {
       name: "downhill-drive-save-v1",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => signedStorage),
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<Save>;
+        const p = sanitizeSave((persisted ?? {}) as Partial<Save>);
         return {
           ...current,
           ...p,
