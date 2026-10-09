@@ -176,8 +176,11 @@ export const useSave = create<Save & SaveActions>()(
       },
       buyCar: (id, price) => {
         const s = get();
-        if (s.owned.includes(id) || s.wheels < price) return false;
-        set({ wheels: s.wheels - price, owned: [...s.owned, id], selected: id });
+        // Derive the price from the car catalog instead of trusting the caller.
+        const car = CARS.find((c) => c.id === id);
+        if (!car || car.price !== price) return false;
+        if (s.owned.includes(id) || s.wheels < car.price) return false;
+        set({ wheels: s.wheels - car.price, owned: [...s.owned, id], selected: id });
         return true;
       },
       selectCar: (id) => {
@@ -217,9 +220,9 @@ export const useSave = create<Save & SaveActions>()(
     }),
     {
       name: "downhill-drive-save-v1",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => signedStorage),
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<Save>;
+        const p = sanitizeSave((persisted ?? {}) as Partial<Save>);
         return {
           ...current,
           ...p,
