@@ -16,3 +16,4 @@
 - Loops constrain surface contact while retaining throttle, brake, lateral steering and boost; the camera keeps a cached side-view target through the exit to avoid discontinuities.
 
 - Dev-only devtools source tags are stripped from src/game and src/components .tsx files in vite.config.ts, because the 3D renderer crashes on dashed prop names.
+- Lobby music uses a central CDN-backed playlist and a disposable browser audio controller synchronized with game mode and existing sound settings, so future tracks need only playlist additions and music cannot continue during runs.

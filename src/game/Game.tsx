@@ -9,6 +9,7 @@ import { bindInput, orbit, rebinding } from "./input";
 import { useGame, useSave } from "./store";
 import { audio } from "./audio";
 import { exitMenu, returnToLobby } from "./physics";
+import { LobbyMusic } from "./lobbyMusic";
 
 export function Game() {
   const [fontsReady, setFontsReady] = useState(false);
@@ -31,6 +32,26 @@ export function Game() {
 
   useEffect(() => bindInput(), []);
   useEffect(() => audio.setVolume(volume, muted), [volume, muted]);
+
+  useEffect(() => {
+    const music = new LobbyMusic();
+    const sync = () => {
+      const settings = useSave.getState().settings;
+      music.sync(useGame.getState().mode, settings.volume, settings.muted);
+    };
+    sync();
+    const unsubscribeGame = useGame.subscribe(sync);
+    const unsubscribeSave = useSave.subscribe(sync);
+    window.addEventListener("pointerdown", music.resume);
+    window.addEventListener("keydown", music.resume);
+    return () => {
+      unsubscribeGame();
+      unsubscribeSave();
+      window.removeEventListener("pointerdown", music.resume);
+      window.removeEventListener("keydown", music.resume);
+      music.dispose();
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
