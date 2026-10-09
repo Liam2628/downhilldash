@@ -332,7 +332,7 @@ function footprintBlocked(x: number, z: number, yaw: number, y: number) {
       const base = hAt(lp.s);
       if (y > base + lp.R * 2 + 1 || y + 1.4 < base - 1) continue;
       if (Math.abs(pz + lp.s) < 0.4 && Math.abs(Math.abs(px - cAt(lp.s)) - 9) < 0.4) return "pillar";
-      if (Math.abs(pz + lp.s) < 0.8 && Math.abs(px - cAt(lp.s)) < 9.5 &&
+      if (Math.abs(pz + lp.s) < 0.4 && Math.abs(px - cAt(lp.s)) < 9.5 &&
           y + 1.4 > base + lp.R * 2 + 1.4 && y < base + lp.R * 2 + 2.2) return "pillar";
     }
   }
