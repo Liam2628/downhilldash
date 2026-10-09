@@ -24,6 +24,7 @@ export function Player() {
   const turntable = useRef<THREE.Mesh>(null);
   const camLook = useRef(new THREE.Vector3(0, 1, 30));
   const loopView = useRef(new THREE.Vector3());
+  const airLift = useRef(0);
   const { camera } = useThree();
 
   const mode = useGame((s) => s.mode);
@@ -125,7 +126,8 @@ export function Player() {
       const d = hood ? -0.4 : (8.5 + Math.min(4, Math.abs(P.speed) * 0.05)) * settings.camDist * far;
       const h = hood ? 1.35 : 3.6 * settings.camDist * (view.mode === 1 ? 1.45 : 1);
       const fx = Math.sin(P.yaw); const fz = Math.cos(P.yaw);
-      tmpV.set(P.x - fx * d, P.y + h + (P.grounded || hood ? 0 : 1), P.z - fz * d);
+      airLift.current += ((P.grounded || hood || P.loop ? 0 : 1) - airLift.current) * (1 - Math.exp(-5 * dt));
+      tmpV.set(P.x - fx * d, P.y + h + airLift.current, P.z - fz * d);
       const lp = P.loop?.lp;
       if (lp) loopView.current.set(cAt(lp.s) + 34, hAt(lp.s) + lp.R + 3, -lp.s + 4);
       if (P.loopCamera > 0.001) tmpV.lerp(loopView.current, P.loopCamera);

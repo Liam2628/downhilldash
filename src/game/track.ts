@@ -11,6 +11,9 @@ export type Cone = { s: number; xo: number };
 export type Barrier = { s: number; xo: number; w: number };
 export type Coin = { x: number; y: number; z: number };
 export const LOOP_WIDTH = 9;
+export const LOOP_DECK_THICKNESS = 0.18;
+export const LOOP_RAIL_RADIUS = 0.25;
+export const LOOP_RAIL_HEIGHT = 0.4;
 export const BARRIER_DEPTH = 3.6;
 export const BARRIER_HEIGHT = 1.2;
 export function loopPoint(lp: Loop, th: number, offset = 0) {
@@ -23,6 +26,28 @@ export function loopContact(lp: Loop, x: number, y: number, z: number) {
   const th = (Math.atan2(sz, -sy) + Math.PI * 2) % (Math.PI * 2);
   const center = loopPoint(lp, th);
   return { th, radial: Math.hypot(sy, sz) - lp.R, offset: x - center.x };
+}
+
+/** Sweep the wheel-contact point against both faces of the finite circular deck. */
+export function loopSweep(lp: Loop, from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }) {
+  const cy = hAt(lp.s) + lp.R;
+  const y = from.y - cy, z = from.z + lp.s;
+  const dy = to.y - from.y, dz = to.z - from.z;
+  const a = dy * dy + dz * dz;
+  if (a < 1e-12) return null;
+  let first: { t: number; th: number; offset: number } | null = null;
+  for (const radius of [lp.R, lp.R + LOOP_DECK_THICKNESS]) {
+    const b = 2 * (y * dy + z * dz);
+    const c = y * y + z * z - radius * radius;
+    const disc = b * b - 4 * a * c;
+    if (disc < 0) continue;
+    for (const t of [(-b - Math.sqrt(disc)) / (2 * a), (-b + Math.sqrt(disc)) / (2 * a)]) {
+      if (t < 0 || t > 1 || (first && t >= first.t)) continue;
+      const hit = loopContact(lp, from.x + (to.x - from.x) * t, from.y + dy * t, from.z + dz * t);
+      if (Math.abs(hit.offset) <= LOOP_WIDTH / 2) first = { t, th: hit.th, offset: hit.offset };
+    }
+  }
+  return first;
 }
 
 export const LOOPS: Loop[] = [
@@ -128,8 +153,7 @@ export function padAdd(s: number, dx: number) {
     const start = p.s - p.len / 2;
     if (s >= start && s <= start + p.len && Math.abs(dx - p.xo) <= p.w / 2) {
       const t = (s - start) / p.len;
-      const edge = smooth(0, 1.5, p.w / 2 - Math.abs(dx - p.xo));
-      return p.h * t * t * edge;
+      return p.h * t * t;
     }
   }
   return 0;

@@ -26,8 +26,8 @@
 - [x] Loop drop-off yaw fix; unstuck after 3s near a loop
 - [x] Flat pads say "BOOST"; keybind shows "SHIFT"; boost button touch-only; stats board line removed
 - [x] Audio wakes on any key press
-- [ ] Loop collisions match geometry more closely
-- [ ] Revert boost ramp look to version 2
+- [x] Loop collisions share deck thickness/rail dimensions, sweep both circular faces, and tighten support bounds; tests and live boosted-loop traversal passed
+- [x] Restore five curved boost ramps with solid sides; retain three flat strips
 - [ ] Double-tap W/S auto front/back flips
-- [ ] Wood/stone texturing polish; ramp seam camera jitter
+- [x] Wood grain on fence/stats board, stone on footings/loop supports; camera air lift eases across ramp edges; 40 tests passed and desktop/small-screen scenes rendered without page errors
 - [ ] C camera toggle; split times vs PB; daily quests

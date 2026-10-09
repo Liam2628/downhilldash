@@ -6,6 +6,9 @@ import {
   BARRIER_DEPTH,
   BARRIER_HEIGHT,
   LOOP_WIDTH,
+  LOOP_DECK_THICKNESS,
+  LOOP_RAIL_RADIUS,
+  LOOP_RAIL_HEIGHT,
   loopPoint,
   COINS,
   CONES,
@@ -38,6 +41,7 @@ import {
   signTexture,
   windowsTexture,
   grassTexture,
+  stoneTexture,
 } from "./textures";
 import { runState } from "./physics";
 
@@ -246,24 +250,29 @@ function Loops() {
           const th = (i / seg) * Math.PI * 2;
           const point = loopPoint(lp, th);
           const xc = point.x;
-          const y = point.y + 0.02;
+          const y = point.y;
           const z = point.z;
           pos.push(xc - width / 2, y, z, xc + width / 2, y, z);
+          pos.push(xc - width / 2, y - LOOP_DECK_THICKNESS * Math.cos(th), z - LOOP_DECK_THICKNESS * Math.sin(th), xc + width / 2, y - LOOP_DECK_THICKNESS * Math.cos(th), z - LOOP_DECK_THICKNESS * Math.sin(th));
           const v = (th * lp.R) / 16;
           uv.push(0, v, 1, v);
-          rail[0].push(new THREE.Vector3(xc - width / 2, y + 0.4 * Math.cos(th), z + 0.4 * Math.sin(th)));
-          rail[1].push(new THREE.Vector3(xc + width / 2, y + 0.4 * Math.cos(th), z + 0.4 * Math.sin(th)));
+          uv.push(0, v, 1, v);
+          rail[0].push(new THREE.Vector3(xc - width / 2, y + LOOP_RAIL_HEIGHT * Math.cos(th), z + LOOP_RAIL_HEIGHT * Math.sin(th)));
+          rail[1].push(new THREE.Vector3(xc + width / 2, y + LOOP_RAIL_HEIGHT * Math.cos(th), z + LOOP_RAIL_HEIGHT * Math.sin(th)));
         }
         for (let i = 0; i < seg; i++) {
-          const a = i * 2;
-          idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+          const a = i * 4, b = a + 4;
+          idx.push(a, b, a + 1, a + 1, b, b + 1);
+          idx.push(a + 2, a + 3, b + 2, a + 3, b + 3, b + 2);
+          idx.push(a, a + 2, b, a + 2, b + 2, b);
+          idx.push(a + 1, b + 1, a + 3, a + 3, b + 1, b + 3);
         }
         const g = new THREE.BufferGeometry();
         g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
         g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
         g.setIndex(idx);
         g.computeVertexNormals();
-        const rails = rail.map((pts) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, 0.25, 8));
+        const rails = rail.map((pts) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, LOOP_RAIL_RADIUS, 8));
         return { g, rails, lp, c, h };
       }),
     [],
@@ -285,12 +294,12 @@ function Loops() {
           {[-1, 1].map((sd) => (
             <mesh key={sd} position={[d.c + sd * 9, d.h + d.lp.R, -d.lp.s]} castShadow>
               <boxGeometry args={[0.8, d.lp.R * 2 + 2, 0.8]} />
-              <meshStandardMaterial color="#e8e2d4" roughness={0.6} />
+              <meshStandardMaterial map={stoneTexture()} roughness={0.9} />
             </mesh>
           ))}
           <mesh position={[d.c, d.h + d.lp.R * 2 + 1.8, -d.lp.s]} castShadow>
             <boxGeometry args={[19, 0.8, 0.8]} />
-            <meshStandardMaterial color="#e8e2d4" roughness={0.6} />
+            <meshStandardMaterial map={stoneTexture()} roughness={0.9} />
           </mesh>
         </group>
       ))}
@@ -330,6 +339,19 @@ function Pads() {
     }
     const base = (rows + 1) * 11;
     for (let j = 0; j < 10; j++) indices.push(end + j, base + j, end + j + 1, end + j + 1, base + j, base + j + 1);
+    // Solid side skirts close the curved ramp, without changing its shared drive surface.
+    if (!p.flat) for (const side of [0, 10]) {
+      const start = positions.length / 3;
+      for (let i = 0; i <= rows; i++) {
+        const s = p.s - p.len / 2 + p.len * i / rows;
+        const dx = -p.w / 2 + p.w * side / 10;
+        positions.push(cAt(s) + p.xo + dx, hAt(s), -s); uvs.push(side / 10, i / rows);
+      }
+      for (let i = 0; i < rows; i++) {
+        const a = i * 11 + side, b = a + 11, c = start + i;
+        indices.push(a, c, b, b, c, c + 1);
+      }
+    }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
@@ -683,9 +705,9 @@ function Gantries() {
 function Billboards() {
   const items = useMemo(
     () => [
-        { s: 60, side: 1, text: "DOWNHILL DASH", sub: "Shift to boost · Q / E to spin" },
-      { s: 240, side: -1, text: "FLIP IT", sub: "W / S in the air to flip" },
-       { s: 470, side: 1, text: "SPIN IT", sub: "Q / E in the air to spin" },
+        { s: 60, side: 1, text: "DOWNHILL DASH", sub: "SHIFT to boost · Double press W / S to flip" },
+      { s: 240, side: -1, text: "FLIP IT", sub: "Double press W / S in the air" },
+       { s: 470, side: 1, text: "ROLL IT", sub: "Double press A / D in the air" },
       { s: 600, side: -1, text: "LOOP!", sub: "Keep your speed up" },
       { s: 860, side: 1, text: "MEGA RAMP", sub: "Boost pad ahead — commit" },
       { s: 990, side: -1, text: "DODGE!", sub: "Find the gap in the barriers" },
