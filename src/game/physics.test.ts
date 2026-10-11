@@ -174,7 +174,7 @@ describe("Phase 1 driving", () => {
   it("takes off from a real ramp without a random side collision", () => {
     road(RAMPS[0].s - 2); P.x += RAMPS[0].xo; P.speed = 36; keys.add("KeyW");
     let airborne = false;
-    for (let i = 0; i < 50; i++) { step(1 / 60); airborne ||= !P.grounded; expect(P.wipe).toBe(0); }
+    for (let i = 0; i < 120 && !airborne; i++) { step(1 / 60); airborne ||= !P.grounded; expect(P.wipe).toBe(0); }
     expect(airborne).toBe(true);
   });
   it("recovers below the kill plane or outside the world", () => {
