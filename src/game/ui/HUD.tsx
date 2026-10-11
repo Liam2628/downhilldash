@@ -106,7 +106,7 @@ function Speedo() {
 }
 
 function RunBar() {
-  const progress = useGame((s) => s.hud.progress);
+  const distance = useGame((s) => s.hud.distance);
   const time = useGame((s) => s.hud.time);
   const section = useGame((s) => s.hud.section);
   const runWheels = useGame((s) => s.hud.runWheels);
@@ -120,13 +120,7 @@ function RunBar() {
             +{runWheels} <WheelIcon className="h-4 w-4" />
           </span>
         </div>
-        <div className="relative h-2.5 rounded-full bg-panel-foreground/10">
-          <div className="h-full rounded-full bg-hot" style={{ width: `${progress * 100}%` }} />
-          <div
-            className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-panel-foreground bg-hot"
-            style={{ left: `${progress * 100}%` }}
-          />
-        </div>
+        <div className="text-center font-display text-lg tabular-nums text-hot">{Math.round(distance)} M</div>
       </div>
     </div>
   );

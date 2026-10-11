@@ -15,7 +15,7 @@ import {
   COINS,
   FINISH,
   HALF,
-  L,
+  ensureTrack,
   LOOPS,
   PADS,
   padAdd,
@@ -89,18 +89,27 @@ export const P = {
 
 export type ConeState = { x: number; y: number; z: number; vx: number; vz: number; rot: number; tilt: number; home: [number, number]; away?: number };
 function makeCones(): ConeState[] {
+  // Hub cones first; generated track cones are appended as chunks appear.
   const out: ConeState[] = [];
-  for (const cn of CONES) {
-    const x = cAt(cn.s) + cn.xo;
-    out.push({ x, y: hAt(cn.s), z: -cn.s, vx: 0, vz: 0, rot: 0, tilt: 0, home: [x, -cn.s] });
-  }
   for (const [x, z] of HUB_CONES) out.push({ x, y: 0, z, vx: 0, vz: 0, rot: 0, tilt: 0, home: [x, z] });
   return out;
 }
+const TRACK_CONE0 = HUB_CONES.length;
+
+/** Keep per-run state arrays in step with the endlessly generated track. */
+export function syncGenerated() {
+  while (runState.collected.length < COINS.length) runState.collected.push(0);
+  while (runState.usedPads.length < PADS.length) runState.usedPads.push(0);
+  while (runState.cones.length - TRACK_CONE0 < CONES.length) {
+    const cn = CONES[runState.cones.length - TRACK_CONE0];
+    const x = cAt(cn.s) + cn.xo;
+    runState.cones.push({ x, y: hAt(cn.s), z: -cn.s, vx: 0, vz: 0, rot: 0, tilt: 0, home: [x, -cn.s] });
+  }
+}
 
 export const runState = {
-  collected: new Uint8Array(COINS.length),
-  usedPads: new Uint8Array(PADS.length),
+  collected: [] as number[],
+  usedPads: [] as number[],
   cones: makeCones(),
   version: 0,
 };
@@ -109,7 +118,7 @@ export function resetRun() {
   runState.collected.fill(0);
   runState.usedPads.fill(0);
   // put the track cones back (hub cones stay where you pushed them)
-  for (let i = 0; i < CONES.length; i++) {
+  for (let i = TRACK_CONE0; i < runState.cones.length; i++) {
     const c = runState.cones[i];
     c.x = c.home[0];
     c.z = c.home[1];
@@ -342,6 +351,8 @@ function footprintBlocked(x: number, z: number, yaw: number, y: number) {
 // Bounded substeps keep narrow decks, barrier noses and supports from being skipped.
 export function step(rawDt: number) {
   const elapsed = Math.max(0, Math.min(rawDt, 0.05));
+  ensureTrack(Math.max(0, -P.z));
+  syncGenerated();
   const count = Math.max(1, Math.ceil(elapsed / (1 / 120)));
   for (let i = 0; i < count; i++) stepPhysics(elapsed / count);
 }
@@ -414,7 +425,7 @@ function stepPhysics(rawDt: number) {
   const sNow = -P.z;
   if (![P.x, P.y, P.z, P.speed, P.lateral].every(Number.isFinite) ||
       P.y < hAt(Math.max(0, sNow)) - 18 ||
-      (P.z <= 0 && (Math.abs(P.x - cAt(sNow)) > HALF + 35 || sNow > L + 30)) ||
+      (P.z <= 0 && (Math.abs(P.x - cAt(sNow)) > HALF + 35)) ||
       (P.z > 0 && (Math.abs(P.x) > 100 || P.z > HUB_BOUNDS.maxZ + 30))) {
     returnToLobby();
     game.popup("BACK ON TRACK", "cool");
@@ -629,10 +640,6 @@ function stepPhysics(rawDt: number) {
           P.wallT = 0.35;
         }
       }
-    }
-    if (ns > L - 4) {
-      nz = -(L - 4);
-      P.speed = 0;
     }
   }
 
@@ -994,7 +1001,8 @@ function publish(dt: number, mode: string) {
     speed: Math.abs(P.speed),
     boostState,
     boostFrac,
-    progress: Math.max(0, Math.min(1, s / FINISH)),
+    progress: 0,
+    distance: Math.max(0, s),
     time: P.runTime,
     combo: P.combo,
     section: s > 0 ? sectionAt(s) : "LOBBY",
