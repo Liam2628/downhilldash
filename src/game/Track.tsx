@@ -169,7 +169,7 @@ function Terrain() {
     const sand = new THREE.Color("#d9c08a");
     const rock = new THREE.Color("#9a8f80");
     const tmp = new THREE.Color();
-    return stripGeometry(Math.max(TERRAIN_S0, W.s0 + 1), W.s1 + 300, TERRAIN_DS, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
+    return stripGeometry(Math.max(TERRAIN_S0, W.s0), W.s1 + 300, TERRAIN_DS, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
       const a = Math.abs(dx);
       const downtown = false;
       const base = downtown ? rock : Math.sin(s / 700) > 0.75 ? sand : grassA;
