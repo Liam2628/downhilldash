@@ -3,7 +3,12 @@ vi.mock("./audio", () => ({ audio: { engine: vi.fn(), crash: vi.fn(), land: vi.f
 import { P, resetRun, step, teleport } from "./physics";
 import { keys } from "./input";
 import { useGame, useSave } from "./store";
-import { BARRIERS, RAMPS, LOOPS, PADS, cAt, hAt, loopPoint, loopSweep, padAdd, roadYaw, surfaceY } from "./track";
+import { BARRIERS, RAMPS, LOOPS, PADS, cAt, hAt, loopPoint, loopSweep, padAdd, roadYaw, surfaceY, ensureTrack } from "./track";
+import { syncGenerated } from "./physics";
+
+// The course is generated randomly on demand; build a long stretch up front.
+ensureTrack(6000);
+syncGenerated();
 
 function tick(seconds: number) { for (let i = 0; i < Math.round(seconds * 60); i++) step(1 / 60); }
 function road(s: number) {
@@ -29,8 +34,9 @@ describe("Phase 2 track collisions", () => {
       expect(loopSweep(lp, { ...from, x: p.x + 6 }, { ...to, x: p.x + 6 })).toBeNull();
     }
   });
-  it("keeps five curved boost ramps and three flat strips", () => {
-    expect(PADS.filter(p => p.flat)).toHaveLength(3);
+  it("generates both curved boost ramps and flat boost strips", () => {
+    expect(PADS.some(p => p.flat)).toBe(true);
+    expect(PADS.some(p => !p.flat)).toBe(true);
     for (const p of PADS.filter(p => !p.flat)) {
       expect(padAdd(p.s, p.xo)).toBeCloseTo(p.h * 0.25);
       expect(padAdd(p.s, p.xo + p.w / 2)).toBeCloseTo(p.h * 0.25);
@@ -38,10 +44,10 @@ describe("Phase 2 track collisions", () => {
   });
   it.each([12, 22, 40, 70, 100])("keeps barrier impacts bounded at %s m/s", (speed) => {
     const b = BARRIERS[0]; road(b.s - 7); P.x += b.xo; P.y = surfaceY(-P.z, P.x); P.speed = speed;
-    let maxVy = 0;
+    let maxVy = 0; const startY = P.y;
     for (let i = 0; i < 120; i++) { step(1 / 120); maxVy = Math.max(maxVy, P.vy); expect(Number.isFinite(P.y)).toBe(true); }
     expect(maxVy).toBeLessThanOrEqual(16);
-    expect(P.y - hAt(-P.z)).toBeLessThan(7);
+    expect(P.y - startY).toBeLessThan(7); // never rockets upward, even where the road drops away
     if (speed >= 40) expect(-P.z).toBeGreaterThan(b.s + 3);
     else expect(-P.z).toBeLessThan(b.s + 3);
   });
@@ -61,18 +67,6 @@ describe("Phase 2 track collisions", () => {
       expect(airborne).toBe(true);
     }
   });
-  it.each([60, 85, 110])("leaves a clear landing and reaction zone after a boosted Mega Jump at %s", (speed) => {
-    road(898); P.speed = speed; P.boostT = 2;
-    let leftGround = false; let landedS = 0;
-    for (let i = 0; i < 900; i++) {
-      step(1 / 120); leftGround ||= !P.grounded;
-      if (leftGround && P.grounded) { landedS = -P.z; break; }
-      expect(P.wipe).toBe(0);
-    }
-    expect(landedS).toBeGreaterThan(940);
-    expect(BARRIERS.find(b => b.s > landedS)?.s ?? 1180).toBeGreaterThan(landedS + P.speed * 0.8);
-    expect(Math.abs(P.x - cAt(-P.z))).toBeLessThan(9.01);
-  });
   it.each([-0.5, 0, 0.5])("enters loops from angle %s without position snapping", (angle) => {
     const lp = LOOPS[0]; const point = loopPoint(lp, 0);
     teleport(point.x, point.z + 0.5, Math.PI + angle); useGame.setState({ mode: "run" }); P.speed = 40;
@@ -80,7 +74,7 @@ describe("Phase 2 track collisions", () => {
     expect(P.loop).not.toBeNull(); expect(Math.abs(P.x - x)).toBeLessThan(2); expect(Math.abs(P.y - y)).toBeLessThan(1);
   });
   it("catches the loop deck when approaching airborne from the boost ramp", () => {
-    road(575); P.x = cAt(610) - 5; P.speed = 55; keys.add("KeyW");
+    road(LOOPS[0].s - 35); P.x = cAt(LOOPS[0].s) - 5; P.speed = 55; keys.add("KeyW");
     let entered = false;
     for (let i = 0; i < 300; i++) { step(1 / 120); entered ||= !!P.loop; if (entered) break; }
     expect(entered).toBe(true);
@@ -124,7 +118,7 @@ describe("Phase 2 track collisions", () => {
     const z = P.z; tick(0.4); expect(P.z).toBeGreaterThan(z); expect(P.yaw).toBeCloseTo(Math.PI);
   });
   it("keeps control after an actual boosted loop exit", () => {
-    road(575); P.x = cAt(610) - 5; P.speed = 55; keys.add("KeyW");
+    road(LOOPS[0].s - 35); P.x = cAt(LOOPS[0].s) - 5; P.speed = 55; keys.add("KeyW");
     let entered = false; let exited = false;
     for (let i = 0; i < 800; i++) {
       step(1 / 120); entered ||= !!P.loop;
@@ -133,7 +127,7 @@ describe("Phase 2 track collisions", () => {
     }
     expect(exited).toBe(true);
     for (let i = 0; i < 120; i++) { step(1 / 120); expect(P.wipe).toBe(0); }
-    expect(-P.z).toBeGreaterThan(620);
+    expect(-P.z).toBeGreaterThan(LOOPS[0].s + 10);
   });
   it("has solid loop rails when steering into their edge", () => {
     const lp = LOOPS[0]; const p = loopPoint(lp, Math.PI / 2, 4.1);
@@ -178,9 +172,9 @@ describe("Phase 1 driving", () => {
     expect(P.speed).toBeLessThan(23);
   });
   it("takes off from a real ramp without a random side collision", () => {
-    road(88); P.speed = 36; keys.add("KeyW");
+    road(RAMPS[0].s - 2); P.x += RAMPS[0].xo; P.speed = 36; keys.add("KeyW");
     let airborne = false;
-    for (let i = 0; i < 50; i++) { step(1 / 60); airborne ||= !P.grounded; expect(P.wipe).toBe(0); }
+    for (let i = 0; i < 120 && !airborne; i++) { step(1 / 60); airborne ||= !P.grounded; expect(P.wipe).toBe(0); }
     expect(airborne).toBe(true);
   });
   it("recovers below the kill plane or outside the world", () => {

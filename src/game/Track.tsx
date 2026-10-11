@@ -1,8 +1,8 @@
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
-  BARRIERS,
+  BARRIERS as BARRIERS_ALL,
   BARRIER_DEPTH,
   BARRIER_HEIGHT,
   LOOP_WIDTH,
@@ -12,16 +12,16 @@ import {
   loopPoint,
   COINS,
   CONES,
-  FINISH,
   HALF,
-  L,
-  LOOPS,
-  PADS,
-  RAMPS,
-  SCENERY_BUILDINGS,
-  SCENERY_TREES,
-  SECTIONS,
-  TUNNEL,
+  LOOPS as LOOPS_ALL,
+  PADS as PADS_ALL,
+  RAMPS as RAMPS_ALL,
+  SCENERY_BUILDINGS as BUILDINGS_ALL,
+  SCENERY_TREES as TREES_ALL,
+  GANTRIES,
+  BILLBOARDS as BILLBOARDS_ALL,
+  genEnd,
+  ensureTrack,
   cAt,
   dcAt,
   hAt,
@@ -43,7 +43,11 @@ import {
   grassTexture,
   stoneTexture,
 } from "./textures";
-import { runState } from "./physics";
+import { runState, P } from "./physics";
+
+/** Rendered window of the endless track; rebuilt every 100 m as the car advances. */
+const W = { s0: -1, s1: 900 };
+const inWin = (s: number) => s >= W.s0 - 5 && s <= W.s1 + 5;
 
 /** Build a strip surface along s. cols are dx offsets; heightFn(s, dx) */
 function stripGeometry(
@@ -93,7 +97,7 @@ function stripGeometry(
 
 function Road() {
   const geo = useMemo(
-    () => stripGeometry(-1, L + 4, 2, [-HALF, HALF], (s) => hAt(s) + 0.01, 16),
+    () => stripGeometry(W.s0, W.s1, 2, [-HALF, HALF], (s) => hAt(s) + 0.01, 16),
     [],
   );
   const tex = useMemo(() => {
@@ -112,12 +116,12 @@ function Walls() {
   // fix duplicate-column lookups: use explicit builder
   const fixed = useMemo(() => {
     return [-1, 1].map((side) => {
-      const rows = Math.ceil((L + 4) / 2) + 1;
+      const rows = Math.ceil((W.s1 - Math.max(0, W.s0)) / 2) + 1;
       const pos: number[] = [];
       const uv: number[] = [];
       const idx: number[] = [];
       for (let r = 0; r < rows; r++) {
-        const s = r * 2;
+        const s = Math.max(0, W.s0) + r * 2;
         const c = cAt(s);
         const y = hAt(s);
         const a = c + side * HALF;
@@ -165,10 +169,10 @@ function Terrain() {
     const sand = new THREE.Color("#d9c08a");
     const rock = new THREE.Color("#9a8f80");
     const tmp = new THREE.Color();
-    return stripGeometry(TERRAIN_S0, L + 700, TERRAIN_DS, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
+    return stripGeometry(Math.max(TERRAIN_S0, W.s0), W.s1 + 300, TERRAIN_DS, cols, (s, dx) => terrainY(s, dx) - 0.05, 30, (s, dx, y) => {
       const a = Math.abs(dx);
-      const downtown = s > 620 && s < 900;
-      const base = downtown ? rock : s > 1240 ? sand : grassA;
+      const downtown = false;
+      const base = downtown ? rock : Math.sin(s / 700) > 0.75 ? sand : grassA;
       tmp.copy(base).lerp(grassB, (Math.sin(s * 0.05 + dx * 0.07) * 0.5 + 0.5) * 0.5);
       if (a > 60 && !downtown) tmp.lerp(rock, Math.min(0.5, (y - hAt(Math.max(0, s))) / 60));
       return [tmp.r, tmp.g, tmp.b];
@@ -183,6 +187,7 @@ function Terrain() {
 }
 
 function Ramps() {
+  const RAMPS = useMemo(() => RAMPS_ALL.filter((r) => inWin(r.s)), []);
   const geos = useMemo(
     () =>
       RAMPS.map((r) => {
@@ -235,6 +240,7 @@ function Ramps() {
 }
 
 function Loops() {
+  const LOOPS = useMemo(() => LOOPS_ALL.filter((l) => inWin(l.s)), []);
   const data = useMemo(
     () =>
       LOOPS.map((lp) => {
@@ -308,6 +314,7 @@ function Loops() {
 }
 
 function Pads() {
+  const PADS = useMemo(() => PADS_ALL.filter((p) => inWin(p.s)), []);
   const tex = padTexture();
   const mats = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
   const geos = useMemo(() => PADS.map((p) => {
@@ -403,19 +410,21 @@ function Coins() {
     parts.push(new THREE.CylinderGeometry(0.13, 0.13, 0.52, 12).rotateX(Math.PI / 2));
     return mergeGeos(parts);
   }, []);
+  const ids = useMemo(() => COINS.flatMap((c, i) => (inWin(-c.z) ? [i] : [])), []);
   useFrame(({ clock }) => {
     if (!tire.current || !tread.current || !rim.current || !spokes.current) return;
     const t = clock.elapsedTime;
-    for (let i = 0; i < COINS.length; i++) {
+    for (let n = 0; n < ids.length; n++) {
+      const i = ids[n];
       const c = COINS[i];
       dummy.position.set(c.x, c.y + Math.sin(t * 3 + i) * 0.15, c.z);
       dummy.rotation.set(0, t * 2.5 + i * 0.3, 0);
       dummy.scale.setScalar(runState.collected[i] ? 0 : 1);
       dummy.updateMatrix();
-      tire.current.setMatrixAt(i, dummy.matrix);
-      rim.current.setMatrixAt(i, dummy.matrix);
-      spokes.current.setMatrixAt(i, dummy.matrix);
-      tread.current.setMatrixAt(i, dummy.matrix);
+      tire.current.setMatrixAt(n, dummy.matrix);
+      rim.current.setMatrixAt(n, dummy.matrix);
+      spokes.current.setMatrixAt(n, dummy.matrix);
+      tread.current.setMatrixAt(n, dummy.matrix);
     }
     tire.current.instanceMatrix.needsUpdate = true;
     tread.current.instanceMatrix.needsUpdate = true;
@@ -424,16 +433,16 @@ function Coins() {
   });
   return (
     <>
-      <instancedMesh ref={tire} args={[tireGeo, undefined, COINS.length]} castShadow frustumCulled={false}>
+      <instancedMesh ref={tire} args={[tireGeo, undefined, Math.max(1, ids.length)]} castShadow frustumCulled={false}>
         <meshStandardMaterial color="#1a1a1d" roughness={0.85} side={THREE.DoubleSide} />
       </instancedMesh>
-      <instancedMesh ref={tread} args={[treadGeo, undefined, COINS.length]} frustumCulled={false}>
+      <instancedMesh ref={tread} args={[treadGeo, undefined, Math.max(1, ids.length)]} frustumCulled={false}>
         <meshStandardMaterial color="#2a2a2e" roughness={0.9} />
       </instancedMesh>
-      <instancedMesh ref={rim} args={[rimGeo, undefined, COINS.length]} frustumCulled={false}>
+      <instancedMesh ref={rim} args={[rimGeo, undefined, Math.max(1, ids.length)]} frustumCulled={false}>
         <meshStandardMaterial color="#ffc21a" emissive="#b07800" emissiveIntensity={0.6} metalness={0.85} roughness={0.25} />
       </instancedMesh>
-      <instancedMesh ref={spokes} args={[spokeGeo, undefined, COINS.length]} frustumCulled={false}>
+      <instancedMesh ref={spokes} args={[spokeGeo, undefined, Math.max(1, ids.length)]} frustumCulled={false}>
         <meshStandardMaterial color="#e8e8ee" metalness={0.9} roughness={0.2} />
       </instancedMesh>
     </>
@@ -460,18 +469,19 @@ function Cones() {
   const base = useRef<THREE.InstancedMesh>(null);
   const stripe = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const ids = useMemo(() => runState.cones.flatMap((c, i) => (c.home[1] > 0 || inWin(-c.home[1]) ? [i] : [])), []);
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.05);
     if (!body.current || !stripe.current || !base.current) return;
-    for (let i = 0; i < runState.cones.length; i++) {
-      const st = runState.cones[i];
+    for (let n = 0; n < ids.length; n++) {
+      const st = runState.cones[ids[n]];
       dummy.position.set(st.x, st.y, st.z);
       dummy.rotation.set(st.tilt, st.rot, 0, "YXZ");
       dummy.scale.setScalar(1);
       dummy.updateMatrix();
-      body.current.setMatrixAt(i, dummy.matrix);
-      stripe.current.setMatrixAt(i, dummy.matrix);
-      base.current.setMatrixAt(i, dummy.matrix);
+      body.current.setMatrixAt(n, dummy.matrix);
+      stripe.current.setMatrixAt(n, dummy.matrix);
+      base.current.setMatrixAt(n, dummy.matrix);
     }
     body.current.instanceMatrix.needsUpdate = true;
     stripe.current.instanceMatrix.needsUpdate = true;
@@ -482,13 +492,13 @@ function Cones() {
   const baseGeo = useMemo(() => new THREE.BoxGeometry(1.0, 0.14, 1.0).translate(0, 0.07, 0), []);
   return (
     <>
-      <instancedMesh ref={body} args={[coneGeo, undefined, runState.cones.length]} castShadow frustumCulled={false}>
+      <instancedMesh ref={body} args={[coneGeo, undefined, Math.max(1, ids.length)]} castShadow frustumCulled={false}>
         <meshStandardMaterial color="#ff6a13" roughness={0.5} />
       </instancedMesh>
-      <instancedMesh ref={base} args={[baseGeo, undefined, runState.cones.length]} castShadow frustumCulled={false}>
+      <instancedMesh ref={base} args={[baseGeo, undefined, Math.max(1, ids.length)]} castShadow frustumCulled={false}>
         <meshStandardMaterial color="#e2540c" roughness={0.6} />
       </instancedMesh>
-      <instancedMesh ref={stripe} args={[stripeGeo, undefined, runState.cones.length]} frustumCulled={false}>
+      <instancedMesh ref={stripe} args={[stripeGeo, undefined, Math.max(1, ids.length)]} frustumCulled={false}>
         <meshStandardMaterial color="#ffffff" roughness={0.4} />
       </instancedMesh>
     </>
@@ -496,6 +506,7 @@ function Cones() {
 }
 
 function Barriers() {
+  const BARRIERS = useMemo(() => BARRIERS_ALL.filter((b) => inWin(b.s)), []);
   const ref = useRef<THREE.InstancedMesh>(null);
   const caps = useRef<THREE.InstancedMesh>(null);
   const geo = useMemo(() => {
@@ -536,6 +547,8 @@ function Barriers() {
 }
 
 function Scenery() {
+  const SCENERY_BUILDINGS = useMemo(() => BUILDINGS_ALL.filter((b) => inWin(-b.z)), []);
+  const SCENERY_TREES = useMemo(() => TREES_ALL.filter((tr) => inWin(-tr.z)), []);
   const bRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
   const groups = useMemo(() => {
     const gs: (typeof SCENERY_BUILDINGS)[] = [[], [], [], [], [], [], []];
@@ -608,62 +621,15 @@ function Scenery() {
   );
 }
 
-function Tunnel() {
-  const arches = useMemo(() => {
-    const out: { x: number; y: number; z: number; ry: number }[] = [];
-    for (let s = TUNNEL.s0; s <= TUNNEL.s1; s += 4) out.push({ x: cAt(s), y: hAt(s), z: -s, ry: Math.atan2(dcAt(s), -1) });
-    return out;
-  }, []);
-  const ref = useRef<THREE.InstancedMesh>(null);
-  const lights = useRef<THREE.InstancedMesh>(null);
-  useLayoutEffect(() => {
-    const d = new THREE.Object3D();
-    arches.forEach((a, i) => {
-      d.position.set(a.x, a.y, a.z);
-      d.rotation.set(0, a.ry, 0);
-      d.updateMatrix();
-      ref.current!.setMatrixAt(i, d.matrix);
-      d.position.set(a.x, a.y + 9.6, a.z);
-      d.updateMatrix();
-      lights.current!.setMatrixAt(i, d.matrix);
-    });
-    ref.current!.instanceMatrix.needsUpdate = true;
-    lights.current!.instanceMatrix.needsUpdate = true;
-  }, [arches]);
-  const archGeo = useMemo(() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(-12, 0);
-    shape.lineTo(-12, 7);
-    shape.absarc(0, 7, 12, Math.PI, 0, true);
-    shape.lineTo(12, 0);
-    shape.lineTo(11, 0);
-    shape.absarc(0, 7, 11, 0, Math.PI, false);
-    shape.lineTo(-11, 0);
-    shape.closePath();
-    return new THREE.ExtrudeGeometry(shape, { depth: 2.2, bevelEnabled: false, curveSegments: 16 });
-  }, []);
-  return (
-    <>
-      <instancedMesh ref={ref} args={[archGeo, undefined, arches.length]} castShadow receiveShadow>
-        <meshStandardMaterial color="#d6cfc0" roughness={0.85} />
-      </instancedMesh>
-      <instancedMesh ref={lights} args={[undefined, undefined, arches.length]}>
-        <boxGeometry args={[6, 0.3, 0.6]} />
-        <meshBasicMaterial color="#fff2b0" />
-      </instancedMesh>
-    </>
-  );
-}
-
 function Gantries() {
   return (
     <>
-      {SECTIONS.filter((s) => s.s > 0).map((sec, i) => {
+      {GANTRIES.filter((g) => g.s > 0 && inWin(g.s)).map((g) => ({ s: g.s, name: g.name.split(" · ")[0] })).map((sec, i) => {
         const s = sec.s;
         const x = cAt(s);
         const y = hAt(s);
         const ry = Math.atan2(dcAt(s), -1) + Math.PI;
-        const isFinish = sec.s === FINISH;
+        const isFinish = false;
         const tex = signTexture(sec.name, {
           bg: isFinish ? "#111" : "#1d6b4a",
           border: isFinish ? "#ff6b00" : "#ffcc1f",
@@ -703,19 +669,7 @@ function Gantries() {
 }
 
 function Billboards() {
-  const items = useMemo(
-    () => [
-        { s: 60, side: 1, text: "DOWNHILL DASH", sub: "SHIFT to boost · Double press W / S to flip" },
-      { s: 240, side: -1, text: "FLIP IT", sub: "Double press W / S in the air" },
-       { s: 470, side: 1, text: "ROLL IT", sub: "Double press A / D in the air" },
-      { s: 600, side: -1, text: "LOOP!", sub: "Keep your speed up" },
-      { s: 860, side: 1, text: "MEGA RAMP", sub: "Boost pad ahead — commit" },
-      { s: 990, side: -1, text: "DODGE!", sub: "Find the gap in the barriers" },
-       { s: 1230, side: 1, text: "ROLL IT", sub: "Z / C for barrel rolls · F to level" },
-      { s: 1470, side: -1, text: "FINAL SEND", sub: "Biggest jump on the mountain" },
-    ],
-    [],
-  );
+  const items = useMemo(() => BILLBOARDS_ALL.filter((b) => inWin(b.s)), []);
   return (
     <>
       {items.map((b, i) => {
@@ -749,14 +703,14 @@ function Rocks() {
   const N = 420;
   useLayoutEffect(() => {
     const d = new THREE.Object3D();
-    let seed = 7;
+    let seed = 7 + Math.max(0, W.s0);
     const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     for (let i = 0; i < N; i++) {
-      const s = 20 + r() * (L + 300);
+      const s = Math.max(20, W.s0) + r() * (W.s1 - Math.max(20, W.s0));
       const side = r() < 0.5 ? -1 : 1;
       const dx = side * (14 + r() * 260);
       const sc = 0.6 + r() * r() * 6;
-      { const x = cAt(Math.min(s, L)) + dx; d.position.set(x, terrainMeshY(x, -s) - sc * 0.15, -s); }
+      { const x = cAt(s) + dx; d.position.set(x, terrainMeshY(x, -s) - sc * 0.15, -s); }
       d.rotation.set(r() * 3, r() * 3, r() * 3);
       d.scale.set(sc, sc * (0.5 + r() * 0.5), sc);
       d.updateMatrix();
@@ -773,8 +727,21 @@ function Rocks() {
 }
 
 export function Track() {
+  const [win, setWin] = useState(() => {
+    ensureTrack(0);
+    return { s0: -1, s1: Math.min(genEnd, 900) };
+  });
+  useFrame(() => {
+    const s = Math.max(0, -P.z);
+    const start = Math.max(0, Math.floor((s - 150) / 100) * 100);
+    const s0 = start === 0 ? -1 : start;
+    const s1 = Math.min(genEnd, start + 900);
+    if (s0 !== win.s0 || s1 !== win.s1) setWin({ s0, s1 });
+  });
+  W.s0 = win.s0;
+  W.s1 = win.s1;
   return (
-    <group>
+    <group key={`${win.s0}:${win.s1}`}>
       <Terrain />
       <Road />
       <Walls />
@@ -784,7 +751,6 @@ export function Track() {
       <Coins />
       <Cones />
       <Barriers />
-      <Tunnel />
       <Gantries />
       <Billboards />
       <Scenery />

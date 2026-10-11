@@ -10,18 +10,12 @@ import {
   RAMPS,
   PADS,
   BARRIERS,
-  ensureTrack as genEnsure,
   type Loop,
 } from "./gen";
 
 export const HALF = GEN_HALF;
-// Transitional: until the windowed renderer lands, pre-generate a long course
-// so the existing renderer and physics have a finite length to work with.
-export const L = 1680;
-genEnsure(L + 100);
 export const FINISH = Infinity; // no finish line: the run goes on until you bail
-export const SECTIONS: { s: number; name: string }[] = GANTRIES.filter((g) => g.s <= L).map((g) => ({ s: g.s, name: g.name.split(" · ")[0] }));
-export const TUNNEL = { s0: 0, s1: -1 };
+
 export const LOOP_WIDTH = 9;
 export const LOOP_DECK_THICKNESS = 0.18;
 export const LOOP_RAIL_RADIUS = 0.25;

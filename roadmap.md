@@ -31,3 +31,8 @@
 - [ ] Double-tap W/S auto front/back flips
 - [x] Wood grain on fence/stats board, stone on footings/loop supports; camera air lift eases across ramp edges; 40 tests passed and desktop/small-screen scenes rendered without page errors
 - [ ] C camera toggle; split times vs PB; daily quests
+
+## Phase 3 — Endless track
+- [x] Session 1: endless random track (new course every visit, no finish line, distance counter, drawn in a moving window)
+- [ ] Session 2: Mega Launch (red round spring launcher, rare, much stronger than boost ramps)
+- [ ] Session 3: track-ahead indicator (ramps, turns, loops, Mega Launches) + long-run testing

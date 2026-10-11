@@ -135,6 +135,7 @@ function generateChunk(chunkIndex: number) {
     const ease = t * t * (3 - 2 * t);
     grade += (gradeTarget - grade) * ease * 0.08;
     dc += (dcTarget - dc) * ease * 0.06;
+    if (type === "loop" || type === "mega") dc *= 0.88; // straighten quickly so loops sit on straight road
     dc = Math.max(-0.3, Math.min(0.3, dc));
     H.push(H[H.length - 1] - grade);
     C.push(C[C.length - 1] + dc);

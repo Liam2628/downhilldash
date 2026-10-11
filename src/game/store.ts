@@ -262,6 +262,7 @@ type Hud = {
   boostState: "ready" | "active" | "cooldown";
   boostFrac: number;
   progress: number;
+  distance: number;
   time: number;
   combo: number;
   section: string;
@@ -306,6 +307,7 @@ export const useGame = create<GameState>()((set, get) => ({
     boostState: "ready",
     boostFrac: 1,
     progress: 0,
+    distance: 0,
     time: 0,
     combo: 1,
     section: "",
