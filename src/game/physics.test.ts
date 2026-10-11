@@ -44,10 +44,10 @@ describe("Phase 2 track collisions", () => {
   });
   it.each([12, 22, 40, 70, 100])("keeps barrier impacts bounded at %s m/s", (speed) => {
     const b = BARRIERS[0]; road(b.s - 7); P.x += b.xo; P.y = surfaceY(-P.z, P.x); P.speed = speed;
-    let maxVy = 0;
+    let maxVy = 0; const startY = P.y;
     for (let i = 0; i < 120; i++) { step(1 / 120); maxVy = Math.max(maxVy, P.vy); expect(Number.isFinite(P.y)).toBe(true); }
     expect(maxVy).toBeLessThanOrEqual(16);
-    expect(P.y - hAt(-P.z)).toBeLessThan(7);
+    expect(P.y - startY).toBeLessThan(7); // never rockets upward, even where the road drops away
     if (speed >= 40) expect(-P.z).toBeGreaterThan(b.s + 3);
     else expect(-P.z).toBeLessThan(b.s + 3);
   });
