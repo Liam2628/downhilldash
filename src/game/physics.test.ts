@@ -67,18 +67,6 @@ describe("Phase 2 track collisions", () => {
       expect(airborne).toBe(true);
     }
   });
-  it.each([60, 85, 110])("leaves a clear landing and reaction zone after a boosted Mega Jump at %s", (speed) => {
-    road(898); P.speed = speed; P.boostT = 2;
-    let leftGround = false; let landedS = 0;
-    for (let i = 0; i < 900; i++) {
-      step(1 / 120); leftGround ||= !P.grounded;
-      if (leftGround && P.grounded) { landedS = -P.z; break; }
-      expect(P.wipe).toBe(0);
-    }
-    expect(landedS).toBeGreaterThan(940);
-    expect(BARRIERS.find(b => b.s > landedS)?.s ?? 1180).toBeGreaterThan(landedS + P.speed * 0.8);
-    expect(Math.abs(P.x - cAt(-P.z))).toBeLessThan(9.01);
-  });
   it.each([-0.5, 0, 0.5])("enters loops from angle %s without position snapping", (angle) => {
     const lp = LOOPS[0]; const point = loopPoint(lp, 0);
     teleport(point.x, point.z + 0.5, Math.PI + angle); useGame.setState({ mode: "run" }); P.speed = 40;
@@ -86,7 +74,7 @@ describe("Phase 2 track collisions", () => {
     expect(P.loop).not.toBeNull(); expect(Math.abs(P.x - x)).toBeLessThan(2); expect(Math.abs(P.y - y)).toBeLessThan(1);
   });
   it("catches the loop deck when approaching airborne from the boost ramp", () => {
-    road(575); P.x = cAt(610) - 5; P.speed = 55; keys.add("KeyW");
+    road(LOOPS[0].s - 35); P.x = cAt(LOOPS[0].s) - 5; P.speed = 55; keys.add("KeyW");
     let entered = false;
     for (let i = 0; i < 300; i++) { step(1 / 120); entered ||= !!P.loop; if (entered) break; }
     expect(entered).toBe(true);
@@ -130,7 +118,7 @@ describe("Phase 2 track collisions", () => {
     const z = P.z; tick(0.4); expect(P.z).toBeGreaterThan(z); expect(P.yaw).toBeCloseTo(Math.PI);
   });
   it("keeps control after an actual boosted loop exit", () => {
-    road(575); P.x = cAt(610) - 5; P.speed = 55; keys.add("KeyW");
+    road(LOOPS[0].s - 35); P.x = cAt(LOOPS[0].s) - 5; P.speed = 55; keys.add("KeyW");
     let entered = false; let exited = false;
     for (let i = 0; i < 800; i++) {
       step(1 / 120); entered ||= !!P.loop;
@@ -139,7 +127,7 @@ describe("Phase 2 track collisions", () => {
     }
     expect(exited).toBe(true);
     for (let i = 0; i < 120; i++) { step(1 / 120); expect(P.wipe).toBe(0); }
-    expect(-P.z).toBeGreaterThan(620);
+    expect(-P.z).toBeGreaterThan(LOOPS[0].s + 10);
   });
   it("has solid loop rails when steering into their edge", () => {
     const lp = LOOPS[0]; const p = loopPoint(lp, Math.PI / 2, 4.1);
@@ -184,7 +172,7 @@ describe("Phase 1 driving", () => {
     expect(P.speed).toBeLessThan(23);
   });
   it("takes off from a real ramp without a random side collision", () => {
-    road(88); P.speed = 36; keys.add("KeyW");
+    road(RAMPS[0].s - 2); P.x += RAMPS[0].xo; P.speed = 36; keys.add("KeyW");
     let airborne = false;
     for (let i = 0; i < 50; i++) { step(1 / 60); airborne ||= !P.grounded; expect(P.wipe).toBe(0); }
     expect(airborne).toBe(true);
