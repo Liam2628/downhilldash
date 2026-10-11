@@ -245,7 +245,7 @@ function generateChunk(chunkIndex: number) {
 
   // billboard occasionally
   if (chunkIndex > 0 && r() < 0.4) {
-    const copy = BILLBOARDS[Math.floor(r() * BILLBOARDS.length)];
+    const copy = BILLBOARD_COPY[Math.floor(r() * BILLBOARD_COPY.length)];
     BILLBOARDS.push({ s: s0 + 20 + r() * 60, side: r() < 0.5 ? -1 : 1, text: copy[0], sub: copy[1] });
   }
 
