@@ -3,7 +3,12 @@ vi.mock("./audio", () => ({ audio: { engine: vi.fn(), crash: vi.fn(), land: vi.f
 import { P, resetRun, step, teleport } from "./physics";
 import { keys } from "./input";
 import { useGame, useSave } from "./store";
-import { BARRIERS, RAMPS, LOOPS, PADS, cAt, hAt, loopPoint, loopSweep, padAdd, roadYaw, surfaceY } from "./track";
+import { BARRIERS, RAMPS, LOOPS, PADS, cAt, hAt, loopPoint, loopSweep, padAdd, roadYaw, surfaceY, ensureTrack } from "./track";
+import { syncGenerated } from "./physics";
+
+// The course is generated randomly on demand; build a long stretch up front.
+ensureTrack(6000);
+syncGenerated();
 
 function tick(seconds: number) { for (let i = 0; i < Math.round(seconds * 60); i++) step(1 / 60); }
 function road(s: number) {
@@ -29,8 +34,9 @@ describe("Phase 2 track collisions", () => {
       expect(loopSweep(lp, { ...from, x: p.x + 6 }, { ...to, x: p.x + 6 })).toBeNull();
     }
   });
-  it("keeps five curved boost ramps and three flat strips", () => {
-    expect(PADS.filter(p => p.flat)).toHaveLength(3);
+  it("generates both curved boost ramps and flat boost strips", () => {
+    expect(PADS.some(p => p.flat)).toBe(true);
+    expect(PADS.some(p => !p.flat)).toBe(true);
     for (const p of PADS.filter(p => !p.flat)) {
       expect(padAdd(p.s, p.xo)).toBeCloseTo(p.h * 0.25);
       expect(padAdd(p.s, p.xo + p.w / 2)).toBeCloseTo(p.h * 0.25);
