@@ -662,9 +662,9 @@ function stepPhysics(rawDt: number) {
       if (Math.abs(bs - b.s) > BARRIER_DEPTH / 2 + 1.2 || Math.abs(nx - cAt(bs) - b.xo) > b.w / 2 + 0.6) continue;
       if (P.y > hAt(b.s) + BARRIER_HEIGHT + 0.1) continue;
       if (!P.grounded && P.vy > 0 && P.hitT > 0) continue;
-      if (P.grounded && P.speed >= BARRIER_OVER_SPEED) {
+      if ((P.grounded || (P.y < hAt(bs) + 0.5 && P.vy > -4)) && P.speed >= BARRIER_OVER_SPEED) {
         // A visible sloped nose converts a bounded amount of forward momentum to a hop.
-        P.grounded = false; P.vy = 8; P.speed *= 0.88; P.takeoffPitch = P.pitch;
+        P.grounded = false; P.vy = 12; P.speed *= 0.88; P.takeoffPitch = P.pitch;
         P.airT = 0; P.tYaw = P.tPitch = P.tRoll = 0;
         P.hitT = 0.25; audio.crash("barrier", 0.25);
       } else if (!P.grounded && P.y > hAt(b.s) + BARRIER_HEIGHT - 0.15 && P.vy <= 0) {
