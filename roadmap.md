@@ -34,5 +34,5 @@
 
 ## Phase 3 — Endless track
 - [x] Session 1: endless random track (new course every visit, no finish line, distance counter, drawn in a moving window)
-- [ ] Session 2: Mega Launch (red round spring launcher, rare, much stronger than boost ramps)
+- [x] Session 2: Mega Launch (red round spring launcher, rare, much stronger than boost ramps)
 - [ ] Session 3: track-ahead indicator (ramps, turns, loops, Mega Launches) + long-run testing

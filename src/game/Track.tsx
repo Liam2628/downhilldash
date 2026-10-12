@@ -21,6 +21,7 @@ import {
   GANTRIES,
   BILLBOARDS as BILLBOARDS_ALL,
   genEnd,
+  MEGAS,
   ensureTrack,
   cAt,
   dcAt,
@@ -313,8 +314,78 @@ function Loops() {
   );
 }
 
+function Megas() {
+  const list = useMemo(() => MEGAS.map((m, i) => ({ m, i })).filter(({ m }) => inWin(m.s)), []);
+  const coil = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    for (let t = 0; t <= 1; t += 1 / 160) {
+      const a = t * Math.PI * 2 * 6;
+      pts.push(new THREE.Vector3(Math.cos(a) * 1.5, t, Math.sin(a) * 1.5));
+    }
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 320, 0.13, 8, false);
+  }, []);
+  const springs = useRef<(THREE.Group | null)[]>([]);
+  const tops = useRef<(THREE.Group | null)[]>([]);
+  useFrame(({ clock }) => {
+    const now = performance.now();
+    list.forEach(({ i }, k) => {
+      const hit = runState.megaHitAt[i] || 0;
+      const t = (now - hit) / 1000;
+      // compress hard on hit, then overshoot and settle
+      let c = 1;
+      if (hit && t < 1.2) c = t < 0.08 ? 1 - t / 0.08 * 0.75 : 1 + Math.sin((t - 0.08) * 14) * Math.exp(-(t - 0.08) * 4) * 0.6;
+      else c = 1 + Math.sin(clock.elapsedTime * 3 + k) * 0.03;
+      const h = Math.max(0.15, 0.9 * c);
+      const sp = springs.current[k], tp = tops.current[k];
+      if (sp) sp.scale.y = h;
+      if (tp) tp.position.y = 0.25 + h;
+    });
+  });
+  return (
+    <>
+      {list.map(({ m, i }, k) => {
+        const x = cAt(m.s) + m.xo, y = hAt(m.s), yaw = Math.atan2(dcAt(m.s), -1);
+        const used = !!runState.usedMegas[i];
+        return (
+          <group key={i} position={[x, y, -m.s]} rotation-y={yaw}>
+            <mesh position-y={0.12} receiveShadow castShadow>
+              <cylinderGeometry args={[2.2, 2.4, 0.25, 32]} />
+              <meshStandardMaterial color="#3a3a40" metalness={0.6} roughness={0.4} />
+            </mesh>
+            <group ref={(g) => { springs.current[k] = g; }} position-y={0.25}>
+              <mesh geometry={coil} castShadow>
+                <meshStandardMaterial color="#d8dde3" metalness={0.9} roughness={0.25} />
+              </mesh>
+            </group>
+            <group ref={(g) => { tops.current[k] = g; }} position-y={1.15}>
+              <mesh castShadow>
+                <cylinderGeometry args={[2.6, 2.6, 0.3, 40]} />
+                <meshStandardMaterial color="#e3121b" emissive="#ff2a1a" emissiveIntensity={used ? 0.05 : 0.6} roughness={0.35} />
+              </mesh>
+              <mesh position-y={0.16} rotation-x={-Math.PI / 2}>
+                <ringGeometry args={[1.2, 1.9, 40]} />
+                <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={used ? 0 : 0.4} />
+              </mesh>
+              <mesh position-y={0.17} rotation-x={-Math.PI / 2}>
+                <circleGeometry args={[0.6, 32]} />
+                <meshStandardMaterial color="#ffffff" />
+              </mesh>
+            </group>
+            {[-1, 1].map((sd) => (
+              <mesh key={sd} position={[sd * 4.2, 2.2, 0]} castShadow>
+                <boxGeometry args={[0.25, 4.4, 0.25]} />
+                <meshStandardMaterial color="#e3121b" emissive="#ff2a1a" emissiveIntensity={0.5} />
+              </mesh>
+            ))}
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
 function Pads() {
-  const PADS = useMemo(() => PADS_ALL.filter((p) => inWin(p.s)), []);
+  const PADS = useMemo(() => PADS_ALL.map((p, gi) => Object.assign({ gi }, p)).filter((p) => inWin(p.s)), []);
   const tex = padTexture();
   const mats = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
   const geos = useMemo(() => PADS.map((p) => {
@@ -368,7 +439,7 @@ function Pads() {
   }), []);
   useFrame(({ clock }) => {
     mats.current.forEach((mat, i) => {
-      if (mat) mat.emissiveIntensity = runState.usedPads[i] ? 0.08 : 1.2 + Math.sin(clock.elapsedTime * 8) * 0.5;
+      if (mat) mat.emissiveIntensity = runState.usedPads[PADS[i].gi] ? 0.08 : 1.2 + Math.sin(clock.elapsedTime * 8) * 0.5;
     });
   });
   return (
@@ -748,6 +819,7 @@ export function Track() {
       <Ramps />
       <Loops />
       <Pads />
+      <Megas />
       <Coins />
       <Cones />
       <Barriers />
