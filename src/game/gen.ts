@@ -8,7 +8,7 @@ export const CHUNK = 100;
 export const AHEAD = 700; // meters generated beyond the car
 export const HALF = 10;
 
-let seed = (Math.random() * 2 ** 32) >>> 0;
+const seed = (Math.random() * 2 ** 32) >>> 0;
 
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -68,33 +68,30 @@ let grade = 0.18;
 let dc = 0;
 let lastMegaChunk = -99;
 let lastType = "";
+let areaRemaining = 0;
+let areaStart = 0;
+let areaType: ChunkType = "normal";
+let areaDowntown = false;
 
 type ChunkType = "normal" | "steep" | "verySteep" | "boost" | "curve" | "loop" | "obstacles" | "mega";
 
 function pickType(r: () => number, chunkIndex: number): ChunkType {
-  if (chunkIndex < 2) return "normal";
+  if (chunkIndex === 0) return "normal";
   const weights: [ChunkType, number][] = [
-    ["normal", 0.26],
-    ["steep", 0.14],
-    ["verySteep", 0.08],
-    ["boost", 0.11],
-    ["curve", 0.14],
-    ["loop", 0.08],
-    ["obstacles", 0.13],
-    ["mega", chunkIndex - lastMegaChunk >= 6 ? 0.06 : 0],
+    ["steep", 0.17], ["verySteep", 0.12], ["boost", 0.25],
+    ["curve", 0.2], ["loop", 0.12], ["obstacles", 0.14],
+    ["mega", chunkIndex - lastMegaChunk >= 10 ? 0.06 : 0],
   ];
-  for (let attempt = 0; attempt < 8; attempt++) {
-    let roll = r();
-    let picked: ChunkType = "normal";
-    for (const [t, w] of weights) {
-      roll -= w;
-      if (roll <= 0) { picked = t; break; }
+  const choices = weights.filter(([t, w]) => t !== lastType && w > 0);
+  let roll = r() * choices.reduce((sum, [, w]) => sum + w, 0);
+  for (const [t, w] of choices) {
+    roll -= w;
+    if (roll <= 0) {
+      if (t === "mega") lastMegaChunk = chunkIndex;
+      return t;
     }
-    if (picked === lastType && picked !== "normal") continue; // variety: no back-to-back specials
-    if (picked === "mega") lastMegaChunk = chunkIndex;
-    return picked;
   }
-  return "normal";
+  return "boost";
 }
 
 const GRADES: Record<ChunkType, [number, number]> = {
@@ -120,14 +117,25 @@ const BILLBOARD_COPY: [string, string][] = [
 function generateChunk(chunkIndex: number) {
   const s0 = chunkIndex * CHUNK;
   const r = rng((seed ^ Math.imul(chunkIndex + 1, 2654435761)) >>> 0);
-  const type = pickType(r, chunkIndex);
+  const newArea = areaRemaining === 0;
+  if (newArea) {
+    areaType = pickType(r, chunkIndex);
+    areaStart = chunkIndex;
+    // A single 100 m introduction, then 300–600 m playable areas.
+    areaRemaining = chunkIndex === 0 ? 1 :
+      areaType === "boost" || areaType === "curve" ? 4 + Math.floor(r() * 3) : 3 + Math.floor(r() * 2);
+    areaDowntown = chunkIndex > 0 && r() < 0.2;
+    lastType = areaType;
+  }
+  const type = areaType;
+  const areaOffset = chunkIndex - areaStart;
+  areaRemaining--;
   chunkTypes[chunkIndex] = type;
-  lastType = type;
 
   const [g0, g1] = GRADES[type];
   const gradeTarget = g0 + r() * (g1 - g0);
   const dcTarget = type === "curve" ? (r() < 0.5 ? -1 : 1) * (0.15 + r() * 0.15)
-    : type === "loop" || type === "mega" ? 0
+    : chunkIndex === 0 || type === "loop" || type === "mega" ? 0
     : (r() - 0.5) * 0.1;
 
   for (let m = 0; m < CHUNK; m++) {
@@ -169,26 +177,26 @@ function generateChunk(chunkIndex: number) {
 
   switch (type) {
     case "normal":
-      if (r() < 0.5) addRamp(s0 + 25 + r() * 40);
-      if (r() < 0.35) addConeRow(s0 + 30 + r() * 30, 3 + Math.floor(r() * 3));
+      // Clean opening: no ramps, coins, cones, buildings or signs.
       break;
     case "steep":
-      if (r() < 0.4) addRamp(s0 + 40 + r() * 30);
+      if (areaOffset % 2 === 1) addRamp(s0 + 35 + r() * 20);
       break;
     case "verySteep":
-      if (r() < 0.5) addRamp(s0 + 30 + r() * 20, true);
+      if (areaOffset % 2 === 1) addRamp(s0 + 25 + r() * 15, true);
       break;
     case "boost": {
       // always one flat strip plus one or two wedge ramps
       PADS.push({ s: s0 + 25 + r() * 10, xo: 0, len: 8, h: 0, w: 6, flat: true });
       PADS.push({ s: s0 + 55 + r() * 10, xo: 0, len: 7, h: 1.2, w: 5 });
-      if (r() < 0.5) PADS.push({ s: s0 + 80 + r() * 8, xo: 0, len: 7, h: 1.2, w: 5 });
+      PADS.push({ s: s0 + 80 + r() * 8, xo: 0, len: 7, h: 1.2, w: 5 });
       break;
     }
     case "curve":
       addConeRow(s0 + 20 + r() * 20, 5 + Math.floor(r() * 4));
       break;
     case "loop": {
+      if (areaOffset % 2 !== 0) break;
       const lp = { s: s0 + 50, R: 10 + r() * 3 };
       LOOPS.push(lp);
       for (let k = 1; k < 16; k++) {
@@ -216,6 +224,10 @@ function generateChunk(chunkIndex: number) {
       break;
     }
     case "mega": {
+      if (areaOffset > 0) {
+        if (areaOffset === 2) addRamp(s0 + 30);
+        break;
+      }
       MEGAS.push({ s: s0 + 45, xo: 0 });
       // sky-high coin arc above the launch
       for (let k = 1; k < 10; k++) {
@@ -229,7 +241,7 @@ function generateChunk(chunkIndex: number) {
   }
 
   // road coin line (skip where features block)
-  for (let s = s0 + 6; s < s0 + CHUNK - 4; s += 6) {
+  for (let s = s0 + 6; chunkIndex > 0 && s < s0 + CHUNK - 4; s += 6) {
     const blockedF =
       RAMPS.some((rp) => s > rp.s - 3 && s < rp.s + rp.len + 2) ||
       PADS.some((p) => s > p.s - p.len / 2 - 3 && s < p.s + p.len / 2 + 2) ||
@@ -242,7 +254,7 @@ function generateChunk(chunkIndex: number) {
   }
 
   // section sign at the chunk start
-  GANTRIES.push({ s: s0, name: `${CHUNK_NAMES[type]} · ${s0} M` });
+  if (newArea && chunkIndex > 0) GANTRIES.push({ s: s0, name: `${CHUNK_NAMES[type]} · ${s0} M` });
 
   // billboard occasionally
   if (chunkIndex > 0 && r() < 0.4) {
@@ -251,10 +263,10 @@ function generateChunk(chunkIndex: number) {
   }
 
   // --- scenery ---
-  const downtown = r() < 0.1;
+  const downtown = areaDowntown;
   for (let s = s0 + 4; s < s0 + CHUNK; s += 9) {
     for (const side of [-1, 1]) {
-      if (downtown || r() < 0.2) {
+      if (chunkIndex > 0 && (downtown || r() < 0.2)) {
         const off = downtown ? 22 + r() * 10 : 40 + r() * 70;
         const w = 8 + r() * 10;
         const h = downtown ? 20 + r() * 45 : 8 + r() * 22;
