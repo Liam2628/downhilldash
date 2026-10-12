@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] Track feel: short clean downhill opening, longer interesting areas, grounded roadside scenery, faster driving feel; regression and live checks
+- [x] Track feel: 100 m clean downhill opening, 300–600 m interesting areas, triangle-grounded scenery, stronger actual downhill acceleration and closer/lower speed camera; regression tests and browser-driven travel checked (later-area screenshot timed out)
 - [x] Add five renamed lobby-only music tracks with an extensible playlist; automated mute/mode/playlist tests pass and all audio URLs return successfully (audible playback not confirmed in headless browser)
 - [x] Phase 2: predictable traversable barriers, stable ramp edges and safer boosted blind jumps
 - [x] Phase 2: solid loop decks/supports, angled entry, steering/boost and smooth exit camera; straight exit runoff

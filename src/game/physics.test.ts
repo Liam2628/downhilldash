@@ -8,6 +8,9 @@ import { syncGenerated } from "./physics";
 
 // The course is generated randomly on demand; build a long stretch up front.
 ensureTrack(6000);
+// Longer areas mean a random 6 km sample need not contain every obstacle.
+for (let s = 7000; s <= 40000 && (!LOOPS.length || !RAMPS.length || !BARRIERS.length || !PADS.length); s += 1000)
+  ensureTrack(s);
 syncGenerated();
 
 function tick(seconds: number) { for (let i = 0; i < Math.round(seconds * 60); i++) step(1 / 60); }
