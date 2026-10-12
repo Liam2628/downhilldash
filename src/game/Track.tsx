@@ -819,6 +819,7 @@ export function Track() {
       <Ramps />
       <Loops />
       <Pads />
+      <Megas />
       <Coins />
       <Cones />
       <Barriers />
