@@ -17,3 +17,5 @@
 
 - Dev-only devtools source tags are stripped from src/game and src/components .tsx files in vite.config.ts, because the 3D renderer crashes on dashed prop names.
 - Lobby music uses a central CDN-backed playlist and a disposable browser audio controller synchronized with game mode and existing sound settings, so future tracks need only playlist additions and music cannot continue during runs.
+- Generate multi-chunk areas independently of 100 m streaming chunks so playable pacing does not depend on renderer window size.
+- Anchor roadside props through terrainMeshY's triangle interpolation so their bases match the rendered terrain rather than a separate smooth height approximation.

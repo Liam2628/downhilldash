@@ -137,6 +137,12 @@ describe("Phase 2 track collisions", () => {
 });
 
 describe("Phase 1 driving", () => {
+  it("actually travels farther with downhill throttle than lobby throttle", () => {
+    keys.add("KeyW"); tick(1); const hubSpeed = P.speed;
+    road(10); P.speed = 0; keys.add("KeyW"); const start = -P.z; tick(1);
+    expect(P.speed).toBeGreaterThan(hubSpeed * 1.25);
+    expect(-P.z - start).toBeGreaterThan(8);
+  });
   it("accelerates, brakes to zero, and deliberately reverses in the hub", () => {
     keys.add("KeyW"); tick(1); expect(P.speed).toBeGreaterThan(8);
     keys.clear(); keys.add("KeyS"); tick(0.35); expect(Math.abs(P.speed)).toBeLessThan(2);
