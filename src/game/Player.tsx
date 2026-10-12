@@ -97,7 +97,7 @@ export function Player() {
     // ---------- camera ----------
     const cam = camera as THREE.PerspectiveCamera;
     const k = 1 - Math.exp(-6 * dt);
-    let fovTarget = settings.fov + Math.min(14, Math.abs(P.speed) * 0.16) + (P.boosting ? 8 : 0);
+    let fovTarget = Math.min(110, settings.fov + Math.min(18, Math.abs(P.speed) * 0.24) + (P.boosting ? 8 : 0));
 
     if (g.mode === "title") {
       const a = t * 0.08;
@@ -123,8 +123,9 @@ export function Player() {
       P.loopCamera += ((P.loop ? 1 : 0) - P.loopCamera) * (1 - Math.exp(-(P.loop ? 4 : 2.5) * dt));
       const far = view.mode === 1 ? 1.6 : 1;
       const hood = view.mode === 2;
-      const d = hood ? -0.4 : (8.5 + Math.min(4, Math.abs(P.speed) * 0.05)) * settings.camDist * far;
-      const h = hood ? 1.35 : 3.6 * settings.camDist * (view.mode === 1 ? 1.45 : 1);
+      const rush = g.mode === "run" ? Math.min(1, Math.abs(P.speed) / 55) : 0;
+      const d = hood ? -0.4 : (8.5 - rush * 1.2) * settings.camDist * far;
+      const h = hood ? 1.35 : (3.6 - rush * 0.7) * settings.camDist * (view.mode === 1 ? 1.45 : 1);
       const fx = Math.sin(P.yaw); const fz = Math.cos(P.yaw);
       airLift.current += ((P.grounded || hood || P.loop ? 0 : 1) - airLift.current) * (1 - Math.exp(-5 * dt));
       tmpV.set(P.x - fx * d, P.y + h + airLift.current, P.z - fz * d);

@@ -18,6 +18,7 @@ import {
   RAMPS as RAMPS_ALL,
   SCENERY_BUILDINGS as BUILDINGS_ALL,
   SCENERY_TREES as TREES_ALL,
+  SCENERY_ROCKS as ROCKS_ALL,
   GANTRIES,
   BILLBOARDS as BILLBOARDS_ALL,
   genEnd,
@@ -634,7 +635,10 @@ function Scenery() {
       const m = bRefs.current[gi];
       if (!m) return;
       g.forEach((b, i) => {
-        d.position.set(b.x, b.y + b.h / 2 - 1, b.z);
+        // Bury the footing to the lowest corner so the whole base meets sloping land.
+        const footing = Math.min(...[-1, 1].flatMap((sx) => [-1, 1].map((sz) =>
+          terrainMeshY(b.x + sx * b.w / 2, b.z + sz * b.d / 2))));
+        d.position.set(b.x, footing + b.h / 2 - 0.15, b.z);
         d.rotation.set(0, 0, 0);
         d.scale.set(b.w, b.h, b.d);
         d.updateMatrix();
@@ -642,18 +646,21 @@ function Scenery() {
       });
       m.instanceMatrix.needsUpdate = true;
     });
+    const trunkMesh = trunk.current, leavesMesh = leaves.current;
+    if (!trunkMesh || !leavesMesh) return;
     SCENERY_TREES.forEach((t, i) => {
-      d.position.set(t.x, t.y + 1.2 * t.s, t.z);
+      const ground = terrainMeshY(t.x, t.z) - 0.15 * t.s;
+      d.position.set(t.x, ground + 1.2 * t.s, t.z);
       d.scale.setScalar(t.s);
       d.rotation.set(0, i, 0);
       d.updateMatrix();
-      trunk.current!.setMatrixAt(i, d.matrix);
-      d.position.set(t.x, t.y + 4 * t.s, t.z);
+      trunkMesh.setMatrixAt(i, d.matrix);
+      d.position.set(t.x, ground + 4 * t.s, t.z);
       d.updateMatrix();
-      leaves.current!.setMatrixAt(i, d.matrix);
+      leavesMesh.setMatrixAt(i, d.matrix);
     });
-    trunk.current!.instanceMatrix.needsUpdate = true;
-    leaves.current!.instanceMatrix.needsUpdate = true;
+    trunkMesh.instanceMatrix.needsUpdate = true;
+    leavesMesh.instanceMatrix.needsUpdate = true;
   }, [groups]);
   const mats = useMemo(
     () =>
@@ -746,10 +753,10 @@ function Billboards() {
       {items.map((b, i) => {
         const dx = b.side * (HALF + 8);
         const x = cAt(b.s) + dx;
-        const y = terrainY(b.s, dx);
+        const y = terrainMeshY(x, -b.s) - 0.15;
         const tex = signTexture(b.text, { bg: "#ff5a1f", border: "#fff3d6", sub: b.sub, accent: "#fff3d6" });
         return (
-          <group key={i} position={[x, y, -b.s]} rotation-y={Math.PI - b.side * 0.35}>
+          <group key={i} position={[x, y, -b.s]} rotation-y={Math.atan2(dcAt(b.s), -1) - b.side * 0.35}>
             <mesh position={[0, 3.5, 0]} castShadow>
               <boxGeometry args={[0.5, 7, 0.5]} />
               <meshStandardMaterial color="#555" />
@@ -771,24 +778,21 @@ function Billboards() {
 
 function Rocks() {
   const ref = useRef<THREE.InstancedMesh>(null);
-  const N = 420;
+  const rocks = useMemo(() => ROCKS_ALL.filter(r => inWin(-r.z)), []);
+  const N = rocks.length;
   useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
     const d = new THREE.Object3D();
-    let seed = 7 + Math.max(0, W.s0);
-    const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < N; i++) {
-      const s = Math.max(20, W.s0) + r() * (W.s1 - Math.max(20, W.s0));
-      const side = r() < 0.5 ? -1 : 1;
-      const dx = side * (14 + r() * 260);
-      const sc = 0.6 + r() * r() * 6;
-      { const x = cAt(s) + dx; d.position.set(x, terrainMeshY(x, -s) - sc * 0.15, -s); }
-      d.rotation.set(r() * 3, r() * 3, r() * 3);
-      d.scale.set(sc, sc * (0.5 + r() * 0.5), sc);
+    rocks.forEach((r, i) => {
+      d.position.set(r.x, terrainMeshY(r.x, r.z) + r.sc * r.sy * 0.35, r.z);
+      d.rotation.set(...r.rot);
+      d.scale.set(r.sc, r.sc * r.sy, r.sc);
       d.updateMatrix();
-      ref.current!.setMatrixAt(i, d.matrix);
-    }
-    ref.current!.instanceMatrix.needsUpdate = true;
-  }, []);
+      mesh.setMatrixAt(i, d.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [rocks]);
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, N]} castShadow receiveShadow>
       <dodecahedronGeometry args={[1, 0]} />

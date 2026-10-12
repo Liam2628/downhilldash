@@ -379,7 +379,11 @@ function collideLoopDeck(nx: number, nz: number, dt: number) {
       P.lateral = 0; return true;
     }
     const hit = loopSweep(lp, P, { x: nx, y: nextY, z: nz });
-    const crossing = hit !== null || (Math.abs(after.radial) < 0.03 && Math.abs(after.offset) <= LOOP_WIDTH / 2);
+    // The downhill approach sits slightly above the loop's tangent point. Sweep
+    // the entry seam too, rather than requiring an exact circle intersection.
+    const entrySeam = -P.z <= lp.s && -nz >= lp.s &&
+      Math.abs(nextY - hAt(lp.s)) < 0.5 && Math.abs(after.offset) <= LOOP_WIDTH / 2;
+    const crossing = hit !== null || entrySeam || (Math.abs(after.radial) < 0.03 && Math.abs(after.offset) <= LOOP_WIDTH / 2);
     const entering = after.th < 1.45 && -nz > -P.z && P.speed > 8;
     if (crossing && entering && P.loopFallT <= 0) {
       P.loop = { lp, th: after.th, offset: Math.max(-3.3, Math.min(3.3, after.offset)),
@@ -462,7 +466,8 @@ function stepPhysics(rawDt: number) {
   } else if (P.cooldownT > 0) P.cooldownT -= dt;
   P.padT -= dt;
   P.boosting = P.boostT > 0 || P.padT > 0;
-  const topEff = stats.top * (P.boosting ? stats.boost : 1);
+  // Real downhill acceleration and travel speed, not a speedometer multiplier.
+  const topEff = stats.top * (mode === "run" ? 1.15 : 1) * (P.boosting ? stats.boost : 1);
   P.topEff = topEff;
 
   if (P.comboT > 0) {
@@ -504,7 +509,7 @@ function stepPhysics(rawDt: number) {
     const gB = groundAt(P.x - fx * 1.5, P.z - fz * 1.5);
     const slopeDown = Math.max(-0.6, Math.min(0.6, (gB - gA) / 3));
     let a = G * 0.5 * slopeDown;
-    if (up && !down) a += stats.accel * Math.max(0, 1 - P.speed / topEff) * (P.speed < 0 ? 2 : 1);
+    if (up && !down) a += stats.accel * (mode === "run" ? 1.35 : 1) * Math.max(0, 1 - P.speed / topEff) * (P.speed < 0 ? 2 : 1);
     if (down) {
       // S brakes to zero on the slope. In the lobby, continuing to hold S reverses.
       a = P.speed > 0 ? -BRAKE : mode === "run" ? 0 : -REVERSE_ACCEL;
@@ -656,9 +661,11 @@ function stepPhysics(rawDt: number) {
       const bs = -nz;
       if (Math.abs(bs - b.s) > BARRIER_DEPTH / 2 + 1.2 || Math.abs(nx - cAt(bs) - b.xo) > b.w / 2 + 0.6) continue;
       if (P.y > hAt(b.s) + BARRIER_HEIGHT + 0.1) continue;
-      if (P.grounded && P.speed >= BARRIER_OVER_SPEED) {
+      if (!P.grounded && P.vy > 0 && P.hitT > 0) continue;
+      if ((P.grounded || P.y < hAt(bs) + 0.5) && P.speed >= BARRIER_OVER_SPEED) {
         // A visible sloped nose converts a bounded amount of forward momentum to a hop.
-        P.grounded = false; P.vy = 8; P.speed *= 0.88; P.takeoffPitch = P.pitch;
+        P.grounded = false; P.vy = 12; P.speed *= 0.88; P.takeoffPitch = P.pitch;
+        P.y = Math.max(P.y, surfaceY(bs, nx) + 0.05);
         P.airT = 0; P.tYaw = P.tPitch = P.tRoll = 0;
         P.hitT = 0.25; audio.crash("barrier", 0.25);
       } else if (!P.grounded && P.y > hAt(b.s) + BARRIER_HEIGHT - 0.15 && P.vy <= 0) {

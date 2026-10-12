@@ -161,21 +161,20 @@ const smooth = (a: number, b: number, x: number) => {
 export const TERRAIN_COLS = [-700, -450, -300, -220, -140, -90, -60, -40, -26, -18, -12, -10.5, -6, 0, 6, 10.5, 12, 18, 26, 40, 60, 90, 140, 220, 300, 450, 700];
 export const TERRAIN_DS = 2;
 export const TERRAIN_S0 = 0;
-/** Height of the rendered terrain mesh at world x,z (bilinear on the mesh grid). */
+/** Height on the exact two triangles drawn in each terrain grid cell. */
 export function terrainMeshY(x: number, z: number) {
   const s = Math.max(TERRAIN_S0, -z);
   const i = Math.floor((s - TERRAIN_S0) / TERRAIN_DS);
   const s0 = TERRAIN_S0 + i * TERRAIN_DS, s1 = s0 + TERRAIN_DS;
   const f = (s - s0) / TERRAIN_DS;
-  const rowY = (rs: number) => {
-    const dx = x - cAt(rs);
-    const C = TERRAIN_COLS;
-    if (dx <= C[0]) return terrainY(rs, C[0]);
-    if (dx >= C[C.length - 1]) return terrainY(rs, C[C.length - 1]);
-    let j = 0;
-    while (C[j + 1] < dx) j++;
-    const g = (dx - C[j]) / (C[j + 1] - C[j]);
-    return terrainY(rs, C[j]) * (1 - g) + terrainY(rs, C[j + 1]) * g;
-  };
-  return rowY(s0) * (1 - f) + rowY(s1) * f - 0.05;
+  const center = cAt(s0) * (1 - f) + cAt(s1) * f;
+  const cols = TERRAIN_COLS;
+  const dx = Math.max(cols[0], Math.min(cols[cols.length - 1], x - center));
+  let j = 0;
+  while (j < cols.length - 2 && cols[j + 1] < dx) j++;
+  const g = (dx - cols[j]) / (cols[j + 1] - cols[j]);
+  const a = terrainY(s0, cols[j]), b = terrainY(s0, cols[j + 1]);
+  const c = terrainY(s1, cols[j]), d = terrainY(s1, cols[j + 1]);
+  return (f + g <= 1 ? a + (b - a) * g + (c - a) * f :
+    d + (c - d) * (1 - g) + (b - d) * (1 - f)) - 0.05;
 }
