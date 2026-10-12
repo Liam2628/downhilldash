@@ -63,6 +63,33 @@ export const CHUNK_NAMES: Record<string, string> = {
   mega: "MEGA LAUNCH",
 };
 export const chunkTypes: string[] = [];
+export const AREAS: { s: number; type: ChunkType; variation: number; length: number }[] = [];
+
+// Five authored layouts per area; a shuffled bag visits all five before reuse.
+export const AREA_VARIATIONS = [
+  { grade: 0.92, curve: 0.16, bend: 1, rampAt: 34, rampEvery: 2, loopAt: 48, radius: 10, loopEvery: 2, rows: [30, 68], gapStep: 1, megaAt: 42, boostAt: 28 },
+  { grade: 1, curve: 0.23, bend: -1, rampAt: 48, rampEvery: 3, loopAt: 56, radius: 12, loopEvery: 3, rows: [38, 76], gapStep: 2, megaAt: 52, boostAt: 38 },
+  { grade: 1.08, curve: 0.28, bend: 0, rampAt: 38, rampEvery: 2, loopAt: 46, radius: 11, loopEvery: 2, rows: [28, 58, 86], gapStep: 0, megaAt: 62, boostAt: 46 },
+  { grade: 0.96, curve: 0.2, bend: 2, rampAt: 56, rampEvery: 3, loopAt: 62, radius: 13, loopEvery: 2, rows: [42, 82], gapStep: -1, megaAt: 46, boostAt: 32 },
+  { grade: 1.04, curve: 0.25, bend: -2, rampAt: 42, rampEvery: 2, loopAt: 52, radius: 10.5, loopEvery: 3, rows: [26, 64], gapStep: 1, megaAt: 58, boostAt: 42 },
+] as const;
+const variationBags = new Map<ChunkType, number[]>();
+const lastVariations = new Map<ChunkType, number>();
+function nextVariation(type: ChunkType, r: () => number) {
+  let bag = variationBags.get(type);
+  if (!bag?.length) {
+    bag = [0, 1, 2, 3, 4];
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+    if (bag[bag.length - 1] === lastVariations.get(type)) [bag[0], bag[4]] = [bag[4], bag[0]];
+    variationBags.set(type, bag);
+  }
+  const variation = bag.pop() ?? 0;
+  lastVariations.set(type, variation);
+  return variation;
+}
 
 let grade = 0.18;
 let dc = 0;
@@ -72,6 +99,8 @@ let areaRemaining = 0;
 let areaStart = 0;
 let areaType: ChunkType = "normal";
 let areaDowntown = false;
+let areaVariation = 0;
+let lastPairChunk = -10;
 
 type ChunkType = "normal" | "steep" | "verySteep" | "boost" | "curve" | "loop" | "obstacles" | "mega";
 
@@ -125,16 +154,21 @@ function generateChunk(chunkIndex: number) {
     areaRemaining = chunkIndex === 0 ? 1 :
       areaType === "boost" || areaType === "curve" ? 4 + Math.floor(r() * 3) : 3 + Math.floor(r() * 2);
     areaDowntown = chunkIndex > 0 && r() < 0.2;
+    areaVariation = nextVariation(areaType, r);
+    AREAS.push({ s: s0, type: areaType, variation: areaVariation, length: areaRemaining * CHUNK });
     lastType = areaType;
   }
   const type = areaType;
   const areaOffset = chunkIndex - areaStart;
+  const layout = AREA_VARIATIONS[areaVariation];
   areaRemaining--;
   chunkTypes[chunkIndex] = type;
 
   const [g0, g1] = GRADES[type];
-  const gradeTarget = g0 + r() * (g1 - g0);
-  const dcTarget = type === "curve" ? (r() < 0.5 ? -1 : 1) * (0.15 + r() * 0.15)
+  const gradeTarget = (g0 + r() * (g1 - g0)) * layout.grade;
+  const bendSign = layout.bend === 0 ? (areaOffset % 2 ? -1 : 1) :
+    Math.sign(layout.bend) * (Math.abs(layout.bend) === 2 && areaOffset % 2 ? -1 : 1);
+  const dcTarget = type === "curve" ? bendSign * layout.curve
     : chunkIndex === 0 || type === "loop" || type === "mega" ? 0
     : (r() - 0.5) * 0.1;
 
@@ -180,24 +214,21 @@ function generateChunk(chunkIndex: number) {
       // Clean opening: no ramps, coins, cones, buildings or signs.
       break;
     case "steep":
-      if (areaOffset % 2 === 1) addRamp(s0 + 35 + r() * 20);
+      if (areaOffset % layout.rampEvery === 1) addRamp(s0 + layout.rampAt);
       break;
     case "verySteep":
-      if (areaOffset % 2 === 1) addRamp(s0 + 25 + r() * 15, true);
+      if (areaOffset % layout.rampEvery === 1) addRamp(s0 + layout.rampAt - 4, true);
       break;
     case "boost": {
-      // always one flat strip plus one or two wedge ramps
-      PADS.push({ s: s0 + 25 + r() * 10, xo: 0, len: 8, h: 0, w: 6, flat: true });
-      PADS.push({ s: s0 + 55 + r() * 10, xo: 0, len: 7, h: 1.2, w: 5 });
-      PADS.push({ s: s0 + 80 + r() * 8, xo: 0, len: 7, h: 1.2, w: 5 });
+      // Boosts use the same track-wide spacing policy as every other area.
       break;
     }
     case "curve":
-      addConeRow(s0 + 20 + r() * 20, 5 + Math.floor(r() * 4));
+      addConeRow(s0 + 18 + areaVariation * 4, 5 + areaVariation);
       break;
     case "loop": {
-      if (areaOffset % 2 !== 0) break;
-      const lp = { s: s0 + 50, R: 10 + r() * 3 };
+      if (areaOffset % layout.loopEvery !== 0) break;
+      const lp = { s: s0 + layout.loopAt, R: layout.radius };
       LOOPS.push(lp);
       for (let k = 1; k < 16; k++) {
         const th = (k / 16) * Math.PI * 2;
@@ -213,8 +244,9 @@ function generateChunk(chunkIndex: number) {
     }
     case "obstacles": {
       const lanes = [-6.5, 0, 6.5];
-      for (const bs of [s0 + 30, s0 + 65]) {
-        const gap = Math.floor(r() * 3);
+      for (const [row, offset] of layout.rows.entries()) {
+        const bs = s0 + offset;
+        const gap = ((areaOffset + row * layout.gapStep + areaVariation) % 3 + 3) % 3;
         lanes.forEach((xo, i) => {
           if (i !== gap) BARRIERS.push({ s: bs, xo, w: 5.6 });
         });
@@ -225,18 +257,52 @@ function generateChunk(chunkIndex: number) {
     }
     case "mega": {
       if (areaOffset > 0) {
-        if (areaOffset === 2) addRamp(s0 + 30);
+        if (areaOffset === 2) addRamp(s0 + layout.rampAt);
         break;
       }
-      MEGAS.push({ s: s0 + 45, xo: 0 });
+      const launchS = s0 + layout.megaAt;
+      MEGAS.push({ s: launchS, xo: 0 });
       // sky-high coin arc above the launch
       for (let k = 1; k < 10; k++) {
         const ds = k * 5;
-        const y = hAtL(s0 + 45) + 4 + k * 4.5 - 0.28 * k * k;
-        if (y < hAtL(s0 + 45 + ds) + 2) break;
-        COINS.push({ x: cAtL(s0 + 45 + ds), y, z: -(s0 + 45 + ds) });
+        const y = hAtL(launchS) + 4 + k * 4.5 - 0.28 * k * k;
+        if (y < hAtL(launchS + ds) + 2) break;
+        COINS.push({ x: cAtL(launchS + ds), y, z: -(launchS + ds) });
       }
       break;
+    }
+  }
+
+  if (chunkIndex > 0) {
+    const ramp = RAMPS.find(p => p.s >= s0 && p.s < s0 + CHUNK);
+    const loop = LOOPS.find(p => p.s >= s0 && p.s < s0 + CHUNK);
+    const mega = MEGAS.find(p => p.s >= s0 && p.s < s0 + CHUNK);
+    const boostS = ramp ? ramp.s - 18 : loop ? loop.s - loop.R - 18 : mega ? s0 + 16 : s0 + layout.boostAt;
+    const addBoost = (s: number, flat: boolean) => {
+      PADS.push(flat ? { s, xo: 0, len: 8, h: 0, w: 6, flat: true } : { s, xo: 0, len: 7, h: 1.2, w: 5 });
+    };
+    // One boost per 100 m in every playable area, never on an obstacle footprint.
+    const barrierNear = BARRIERS.filter(b => b.s >= s0 && b.s < s0 + CHUNK);
+    let safeS = boostS;
+    if (!ramp && !loop && !mega) {
+      for (const b of barrierNear) if (Math.abs(safeS - b.s) < 12) safeS = b.s - 14;
+    }
+    addBoost(safeS, Boolean(ramp || loop || mega) || (chunkIndex + areaVariation) % 3 === 0);
+    // Occasional pairs, with at least four chunks between pairs; no triples.
+    if (!ramp && !loop && !mega && !barrierNear.length && chunkIndex - lastPairChunk >= 4 && r() < 0.18) {
+      const pairS = safeS + 22;
+      if (pairS <= s0 + 68) {
+        addBoost(pairS, (chunkIndex + areaVariation) % 2 === 0);
+        lastPairChunk = chunkIndex;
+      }
+    }
+    // New chunks are generated far ahead. Resolve approaches across chunk/area
+    // boundaries before they become visible, using the unmodified flat version.
+    for (const p of PADS) {
+      if (p.s < s0 - 80 || p.flat) continue;
+      if (RAMPS.some(rp => rp.s > p.s && rp.s - p.s <= 80) || LOOPS.some(lp => lp.s > p.s && lp.s - p.s <= 80)) {
+        Object.assign(p, { len: 8, h: 0, w: 6, flat: true });
+      }
     }
   }
 
