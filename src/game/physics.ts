@@ -100,6 +100,7 @@ const TRACK_CONE0 = HUB_CONES.length;
 export function syncGenerated() {
   while (runState.collected.length < COINS.length) runState.collected.push(0);
   while (runState.usedPads.length < PADS.length) runState.usedPads.push(0);
+  while (runState.usedMegas.length < MEGAS.length) { runState.usedMegas.push(0); runState.megaHitAt.push(0); }
   while (runState.cones.length - TRACK_CONE0 < CONES.length) {
     const cn = CONES[runState.cones.length - TRACK_CONE0];
     const x = cAt(cn.s) + cn.xo;
@@ -107,9 +108,14 @@ export function syncGenerated() {
   }
 }
 
+export const MEGA_RADIUS = 2.8;
+export const MEGA_LAUNCH_VY = 30;
+
 export const runState = {
   collected: [] as number[],
   usedPads: [] as number[],
+  usedMegas: [] as number[],
+  megaHitAt: [] as number[],
   cones: makeCones(),
   version: 0,
 };
@@ -117,6 +123,7 @@ export const runState = {
 export function resetRun() {
   runState.collected.fill(0);
   runState.usedPads.fill(0);
+  runState.usedMegas.fill(0);
   // put the track cones back (hub cones stay where you pushed them)
   for (let i = TRACK_CONE0; i < runState.cones.length; i++) {
     const c = runState.cones[i];
@@ -947,6 +954,25 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
         for (let j = 0; j < runState.usedPads.length; j++) hit += runState.usedPads[j];
         questDone(questProgress("pads", hit));
       }
+    }
+
+    // Mega Launch: rare red spring pad, one shot per run, far stronger than a boost ramp.
+    for (let i = 0; i < MEGAS.length; i++) {
+      const m = MEGAS[i];
+      if (runState.usedMegas[i] || Math.abs(ns - m.s) > MEGA_RADIUS) continue;
+      if (Math.hypot(ns - m.s, dxc - m.xo) > MEGA_RADIUS || P.y - hAt(ns) > 1.4 || P.vy > 4) continue;
+      runState.usedMegas[i] = 1;
+      runState.megaHitAt[i] = performance.now();
+      P.grounded = false;
+      P.y += 0.3;
+      P.vy = MEGA_LAUNCH_VY;
+      P.speed = Math.max(P.speed, 30);
+      P.takeoffPitch = P.pitch;
+      P.airT = 0;
+      P.tYaw = P.tPitch = P.tRoll = 0;
+      audio.play("pad");
+      audio.play("boost");
+      game.popup("MEGA LAUNCH!", "hot", "Stick the landing");
     }
 
     for (let i = 0; i < SPLITS.length; i++) {
