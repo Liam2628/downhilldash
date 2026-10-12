@@ -18,6 +18,7 @@ import {
   ensureTrack,
   LOOPS,
   PADS,
+  MEGAS,
   padAdd,
   cAt,
   hAt,
