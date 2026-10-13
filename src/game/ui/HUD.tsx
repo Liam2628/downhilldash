@@ -11,6 +11,7 @@ import { keyLabel, virtual } from "../input";
 import type { Action } from "../store";
 import { DailyChest } from "./DailyChest";
 import tireLogo from "@/assets/tire-logo.png";
+import { LOOPS, dcAt } from "../track";
 
 function fmtTime(t: number) {
   const m = Math.floor(t / 60);
@@ -121,10 +122,57 @@ function RunBar() {
           </span>
         </div>
         <div className="text-center font-display text-lg tabular-nums text-hot">{Math.round(distance)} M</div>
+        <AheadStrip distance={distance} />
       </div>
     </div>
   );
 }
+
+const AHEAD_RANGE = 300;
+type AheadMark = { d: number; kind: "loop" | "left" | "right" };
+function upcoming(s: number): AheadMark[] {
+  const marks: AheadMark[] = [];
+  for (const lp of LOOPS) {
+    const d = lp.s - s;
+    if (d > 0 && d <= AHEAD_RANGE) marks.push({ d, kind: "loop" });
+  }
+  // Sharp curve = strong heading change; mark the start of each bend.
+  let inBend = false;
+  for (let d = 5; d <= AHEAD_RANGE; d += 5) {
+    const k = dcAt(s + d + 2) - dcAt(s + d - 2);
+    const sharp = Math.abs(dcAt(s + d)) > 0.16 && Math.abs(k) > 0.004;
+    if (sharp && !inBend) marks.push({ d, kind: dcAt(s + d) > 0 ? "right" : "left" });
+    inBend = sharp;
+  }
+  return marks;
+}
+
+function AheadStrip({ distance }: { distance: number }) {
+  const marks = upcoming(distance);
+  const next = [...marks].sort((a, b) => a.d - b.d)[0];
+  return (
+    <div className="mt-1.5">
+      <div className="relative h-5 rounded-full bg-foreground/10">
+        <span className="absolute left-1 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-hot" />
+        {marks.map((m, i) => (
+          <span
+            key={i}
+            className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 font-display text-xs leading-none ${m.kind === "loop" ? "text-hot" : "text-gold"}`}
+            style={{ left: `${4 + (m.d / AHEAD_RANGE) * 92}%` }}
+          >
+            {m.kind === "loop" ? "◯" : m.kind === "left" ? "↰" : "↱"}
+          </span>
+        ))}
+      </div>
+      {next && (
+        <div className="mt-0.5 text-center font-display text-xs text-gold">
+          {next.kind === "loop" ? "LOOP" : next.kind === "left" ? "SHARP LEFT" : "SHARP RIGHT"} IN {Math.round(next.d)} M
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function Popups() {
   const popups = useGame((s) => s.popups);
