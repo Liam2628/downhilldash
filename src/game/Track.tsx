@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
   BARRIERS as BARRIERS_ALL,
   BARRIER_DEPTH,
@@ -537,43 +538,38 @@ function mergeGeos(parts: THREE.BufferGeometry[]) {
 
 
 function Cones() {
-  const body = useRef<THREE.InstancedMesh>(null);
-  const base = useRef<THREE.InstancedMesh>(null);
-  const stripe = useRef<THREE.InstancedMesh>(null);
+  const mesh = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const ids = useMemo(() => runState.cones.flatMap((c, i) => (c.home[1] > 0 || inWin(-c.home[1]) ? [i] : [])), []);
-  useFrame((_, raw) => {
-    const dt = Math.min(raw, 0.05);
-    if (!body.current || !stripe.current || !base.current) return;
+  useFrame(() => {
+    if (!mesh.current) return;
     for (let n = 0; n < ids.length; n++) {
       const st = runState.cones[ids[n]];
       dummy.position.set(st.x, st.y, st.z);
       dummy.rotation.set(st.tilt, st.rot, 0, "YXZ");
-      dummy.scale.setScalar(1);
       dummy.updateMatrix();
-      body.current.setMatrixAt(n, dummy.matrix);
-      stripe.current.setMatrixAt(n, dummy.matrix);
-      base.current.setMatrixAt(n, dummy.matrix);
+      mesh.current.setMatrixAt(n, dummy.matrix);
     }
-    body.current.instanceMatrix.needsUpdate = true;
-    stripe.current.instanceMatrix.needsUpdate = true;
-    base.current.instanceMatrix.needsUpdate = true;
+    mesh.current.instanceMatrix.needsUpdate = true;
   });
-  const coneGeo = useMemo(() => new THREE.CylinderGeometry(0.06, 0.4, 1.15, 16).translate(0, 0.7, 0), []);
-  const stripeGeo = useMemo(() => new THREE.CylinderGeometry(0.22, 0.29, 0.22, 16).translate(0, 0.72, 0), []);
-  const baseGeo = useMemo(() => new THREE.BoxGeometry(1.0, 0.14, 1.0).translate(0, 0.07, 0), []);
+  // One merged cone (base + body + stripe) so every part moves and rests together.
+  const geo = useMemo(() => {
+    const paint = (g: THREE.BufferGeometry, hex: string) => {
+      const ng = g.index ? g.toNonIndexed() : g; const c = new THREE.Color(hex);
+      const n = ng.getAttribute("position").count; const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+      ng.setAttribute("color", new THREE.BufferAttribute(col, 3)); ng.deleteAttribute("uv"); return ng;
+    };
+    return mergeGeometries([
+      paint(new THREE.CylinderGeometry(0.06, 0.4, 1.15, 16).translate(0, 0.7, 0), "#ff6a13"),
+      paint(new THREE.CylinderGeometry(0.235, 0.305, 0.22, 16).translate(0, 0.72, 0), "#ffffff"),
+      paint(new THREE.BoxGeometry(1.0, 0.14, 1.0).translate(0, 0.07, 0), "#e2540c"),
+    ])!;
+  }, []);
   return (
-    <>
-      <instancedMesh ref={body} args={[coneGeo, undefined, Math.max(1, ids.length)]} castShadow frustumCulled={false}>
-        <meshStandardMaterial color="#ff6a13" roughness={0.5} />
-      </instancedMesh>
-      <instancedMesh ref={base} args={[baseGeo, undefined, Math.max(1, ids.length)]} castShadow frustumCulled={false}>
-        <meshStandardMaterial color="#e2540c" roughness={0.6} />
-      </instancedMesh>
-      <instancedMesh ref={stripe} args={[stripeGeo, undefined, Math.max(1, ids.length)]} frustumCulled={false}>
-        <meshStandardMaterial color="#ffffff" roughness={0.4} />
-      </instancedMesh>
-    </>
+    <instancedMesh ref={mesh} args={[geo, undefined, Math.max(1, ids.length)]} castShadow frustumCulled={false}>
+      <meshStandardMaterial vertexColors roughness={0.5} />
+    </instancedMesh>
   );
 }
 

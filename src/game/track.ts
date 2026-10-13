@@ -127,7 +127,7 @@ export function barrierAdd(s: number, dx: number) {
 export function surfaceY(s: number, x: number) {
   if (s < 0) return 0;
   const dx = x - cAt(s);
-  return hAt(s) + Math.max(rampAdd(s, dx), padAdd(s, dx), barrierAdd(s, dx));
+  return hAt(s) + Math.max(rampAdd(s, dx), padAdd(s, dx));
 }
 
 export type SolidHit = { y: number; kind: "barrier" | "pillar" | "ramp" | null };
@@ -147,7 +147,7 @@ export function terrainY(s: number, dx: number) {
   const base = hAt(Math.min(Math.max(0, s), Math.max(0, genEnd - 1))) - 0.25;
   if (a < HALF + 1.5) return base;
   // Flat next to the lobby so hills never poke through the plaza or its fence.
-  const out = (a - (HALF + 1.5)) * smooth(2, 40, s);
+  const out = (a - (HALF + 1.5)) * smooth(-10, 140, s);
   const far = Math.max(0, out - 200);
   return base + out * 0.18 + far * 0.25 + Math.sin(s / 23 + dx / 17) * Math.min(1, out / 20) * 3 + Math.sin(s / 90 + dx / 60) * Math.min(1, far / 100) * 40;
 }
