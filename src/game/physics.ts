@@ -373,7 +373,7 @@ function collideLoopDeck(nx: number, nz: number, dt: number) {
     const before = loopContact(lp, P.x, P.y, P.z);
     const after = loopContact(lp, nx, nextY, nz);
     const railDistance = Math.hypot(Math.abs(after.offset) - LOOP_WIDTH / 2, after.radial + LOOP_RAIL_HEIGHT);
-    if (railDistance < LOOP_RAIL_RADIUS + 0.55 &&
+    if (railDistance < LOOP_RAIL_RADIUS + 0.2 &&
         Math.abs(before.offset) < Math.abs(after.offset)) {
       impact("metal", Math.abs(P.lateral) + Math.abs(P.speed) * 0.3, "Hit the loop rail");
       P.lateral = 0; return true;
@@ -668,8 +668,12 @@ function stepPhysics(rawDt: number) {
         P.y = Math.max(P.y, surfaceY(bs, nx) + 0.05);
         P.airT = 0; P.tYaw = P.tPitch = P.tRoll = 0;
         P.hitT = 0.25; audio.crash("barrier", 0.25);
-      } else if (!P.grounded && P.y > hAt(b.s) + BARRIER_HEIGHT - 0.15 && P.vy <= 0) {
-        land(hAt(b.s) + BARRIER_HEIGHT, stats);
+      } else if (!P.grounded && P.y > hAt(b.s) + BARRIER_HEIGHT - 0.6) {
+        // Barrier tops are not a platform: deflect the car off instead of landing on it.
+        const side = bs < b.s ? -1 : 1;
+        nz = -(b.s + side * (BARRIER_DEPTH / 2 + 1.3));
+        P.y = Math.max(P.y, hAt(b.s) + BARRIER_HEIGHT + 0.15);
+        P.vy = Math.max(P.vy, 2); P.speed *= 0.9;
       } else if (P.hitT <= 0) {
         impact("barrier", Math.abs(P.speed), "Hit a barrier");
         nx = P.x; nz = P.z; P.lateral = 0;
@@ -826,7 +830,7 @@ function stepCones(dt: number) {
       if (c.away > 4) { c.x = c.home[0]; c.z = c.home[1]; c.vx = c.vz = 0; c.tilt = 0; c.away = 0; }
     } else c.away = 0;
     // sit slightly in the ground; lie lower when knocked on the side
-    c.y = solidY(-c.z, c.x).y - 0.06 - 0.32 * Math.sin(c.tilt);
+    c.y = solidY(-c.z, c.x).y - 0.04 + 0.42 * Math.sin(c.tilt);
   }
 }
 
