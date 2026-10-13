@@ -40,8 +40,8 @@
 - [ ] Session 3: track-ahead indicator (ramps, turns, loops, Mega Launches) + long-run testing
 
 ## Batch: collisions + lobby hills
-- [ ] Barriers: no landing/driving on top
-- [ ] Loop collision accuracy
-- [ ] Cones as one object, no ground sinking/line
-- [ ] Hills shrink gradually near lobby (not too early)
-- [ ] Finish Phase 3 Session 3 (long-run verification)
+- [x] Barriers: no landing/driving on top
+- [x] Loop collision accuracy
+- [x] Cones as one object, no ground sinking/line
+- [x] Hills shrink gradually near lobby (not too early)
+- [x] Finish Phase 3 Session 3 (long-run verification)

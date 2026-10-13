@@ -556,7 +556,7 @@ function Cones() {
   const geo = useMemo(() => {
     const paint = (g: THREE.BufferGeometry, hex: string) => {
       const ng = g.index ? g.toNonIndexed() : g; const c = new THREE.Color(hex);
-      const n = ng.attributes.position.count; const col = new Float32Array(n * 3);
+      const n = ng.getAttribute("position").count; const col = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
       ng.setAttribute("color", new THREE.BufferAttribute(col, 3)); ng.deleteAttribute("uv"); return ng;
     };
