@@ -38,3 +38,10 @@
 - [x] Session 1: endless random track (new course every visit, no finish line, distance counter, drawn in a moving window)
 - [x] Session 2: Mega Launch (red round spring launcher, rare, much stronger than boost ramps)
 - [ ] Session 3: track-ahead indicator (ramps, turns, loops, Mega Launches) + long-run testing
+
+## Batch: collisions + lobby hills
+- [ ] Barriers: no landing/driving on top
+- [ ] Loop collision accuracy
+- [ ] Cones as one object, no ground sinking/line
+- [ ] Hills shrink gradually near lobby (not too early)
+- [ ] Finish Phase 3 Session 3 (long-run verification)
