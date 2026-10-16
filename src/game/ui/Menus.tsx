@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Lock, X } from "lucide-react";
 import { useGame, useSave } from "../store";
-import { CARS, EQUIPMENT, GLOWS, GLOW_UNLOCK, PAINTS, TRAIL_UNLOCK, UPGRADES, carById, type CarStats } from "../data";
+import { CARS, EQUIPMENT, SHOP_ITEMS, GLOWS, GLOW_UNLOCK, PAINTS, TRAIL_UNLOCK, UPGRADES, carById, type CarStats } from "../data";
 import { audio } from "../audio";
 import { exitMenu, startTestDrive } from "../physics";
 import { WheelIcon } from "./WheelIcon";
@@ -335,10 +335,46 @@ function Tuning() {
   );
 }
 
+function PartsVan() {
+  const s = useSave();
+  return (
+    <Shell title="PARTS VAN" sub="Gear for your next runs">
+      <div className="space-y-3">
+        {SHOP_ITEMS.map((it) => {
+          const have = s.items?.[it.id] ?? 0;
+          const full = have >= it.max;
+          return (
+            <div key={it.id} className="flex items-center justify-between gap-3 rounded-xl bg-panel-foreground/5 p-3">
+              <div>
+                <div className="font-display">{it.name} <span className="text-xs opacity-60">x{have}/{it.max}</span></div>
+                <div className="text-xs opacity-70">{it.desc}</div>
+              </div>
+              <button
+                className="btn-game btn-gold shrink-0 !px-3 !py-1.5 text-sm"
+                disabled={full || s.wheels < it.price}
+                onClick={() => {
+                  if (s.buyItem(it.id)) {
+                    audio.play("buy");
+                    useGame.getState().popup(it.name.toUpperCase(), "gold", `You have ${have + 1}`);
+                  }
+                }}
+              >
+                {full ? "FULL" : <Price n={it.price} />}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <p className="pt-3 text-xs opacity-60">Airbags work automatically when you crash on a run. Other items are used when your next run starts.</p>
+    </Shell>
+  );
+}
+
 export function MenuPanel() {
   const menu = useGame((s) => s.menu);
   if (menu === "garage") return <Garage />;
   if (menu === "dealer") return <Dealer />;
   if (menu === "tuning") return <Tuning />;
+  if (menu === "shop") return <PartsVan />;
   return null;
 }

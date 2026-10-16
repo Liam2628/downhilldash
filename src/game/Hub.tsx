@@ -115,7 +115,7 @@ function ShopVan({ b }: { b: HubBuilding }) {
           <meshStandardMaterial color="#333" metalness={0.6} />
         </mesh>
       ))}
-      <Sign position={[0, 5.2, 0]} rotY={-Math.PI / 2} title="PARTS VAN" sub="AIRBAGS · MAGNETS · NITRO" />
+      <Sign position={[-2.4, 5.4, 0]} rotation-y={-Math.PI / 2} text="PARTS VAN" sub="AIRBAGS · MAGNETS · NITRO" w={5.5} h={1.6} bg="#1a1a1f" border="#ff6b00" />
     </group>
   );
 }
