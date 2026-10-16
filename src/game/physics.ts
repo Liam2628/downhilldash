@@ -521,7 +521,7 @@ function stepPhysics(rawDt: number) {
   if (P.boostT > 0) {
     P.boostT -= dt;
     if (P.boostT <= 0) P.cooldownT = stats.cooldown;
-  } else if (P.cooldownT > 0) P.cooldownT -= dt;
+  } else if (P.cooldownT > 0) P.cooldownT -= dt * runItems.recharge;
   P.padT -= dt;
   P.boosting = P.boostT > 0 || P.padT > 0;
   // Real downhill acceleration and travel speed, not a speedometer multiplier.
