@@ -143,6 +143,12 @@ export function resetRun() {
   finishMilestonePassed = false;
   P.runWheels = 0;
   P.runTricks = 0;
+  {
+    const s = useSave.getState();
+    runItems.magnet = s.useItem("magnet") ? 6 : 0;
+    runItems.mult = s.useItem("doubler") ? 2 : 1;
+    runItems.recharge = s.useItem("nitro") ? 2 : 1;
+  }
   P.combo = 1;
   P.bestCombo = 1;
 }
@@ -271,12 +277,23 @@ export function groundAt(x: number, z: number) {
   return surfaceY(-z, x);
 }
 
+const runItems = { magnet: 0, mult: 1, recharge: 1 };
+
 function award(n: number) {
+  n = Math.round(n * runItems.mult);
   useSave.getState().addWheels(n);
   P.runWheels += n;
 }
 
 function wipeout(reason: string, kind: CrashKind, intensity: number) {
+  if (useGame.getState().mode === "run" && useSave.getState().useItem("airbag")) {
+    P.shake = Math.min(1, 0.3 + intensity * 0.5);
+    resetAir();
+    audio.crash(kind, intensity * 0.4);
+    const left = useSave.getState().items.airbag;
+    useGame.getState().popup("AIRBAG SAVED YOU!", "cool", `${left} airbag${left === 1 ? "" : "s"} left`);
+    return;
+  }
   P.wipe = 1.4;
   P.combo = 1;
   P.comboT = 0;
@@ -919,7 +936,7 @@ function stepLoop(dt: number) {
   const pitchTarget = -loop.th;
   P.pitch += (pitchTarget - P.pitch) * (1 - Math.exp(-18 * dt));
   P.roll += (-P.steer * 0.08 - P.roll) * (1 - Math.exp(-10 * dt));
-  collectCoins(stats.magnet);
+  collectCoins(stats.magnet + runItems.magnet);
   if (loop.th >= TAU) {
     P.loop = null;
     // Equivalent whole-turn pose avoids a visual reset; camera blend decays independently.
@@ -1006,7 +1023,7 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
       game.popup("RUN CANCELLED", "bad");
       return;
     }
-    collectCoins(stats.magnet);
+    collectCoins(stats.magnet + runItems.magnet);
     const dxc = P.x - cAt(ns);
 
     for (let i = 0; i < PADS.length; i++) {
