@@ -53,5 +53,5 @@
 - [ ] Accounts: username/password + optional email, Google, cloud save; pop up after 3 min play when signed out; account section in Settings
 - [ ] Sign-in option on the title (landing) screen
 
-- [ ] Shop van near dealership (airbags + consumables)
-- [ ] Make Mercedes AVTR bionic flaps look realistic
+- [x] Shop van near dealership (airbags + consumables)
+- [x] Make Mercedes AVTR bionic flaps look realistic
