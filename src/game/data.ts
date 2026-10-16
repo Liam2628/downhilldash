@@ -1,12 +1,3 @@
-import apex from "@/assets/models/apex.glb.asset.json";
-import solaris from "@/assets/models/solaris.glb.asset.json";
-import inferno from "@/assets/models/inferno.glb.asset.json";
-import phantom from "@/assets/models/phantom.glb.asset.json";
-import vortex from "@/assets/models/vortex.glb.asset.json";
-import pulse from "@/assets/models/pulse.glb.asset.json";
-import singularity from "@/assets/models/singularity.glb.asset.json";
-import firetruck from "@/assets/models/firetruck.glb.asset.json";
-import kart from "@/assets/models/kart-oopi.glb.asset.json";
 
 export type CarStats = {
   top: number; // m/s top speed on flat throttle
@@ -86,7 +77,7 @@ export const CARS: CarDef[] = [
   {
     id: "firetruck",
     name: "Big Red",
-    file: firetruck.url,
+    file: "/models/firetruck.glb",
     price: 3200,
     tag: "EPIC",
     desc: "Massive boost, slow spins. Pure chaos on the mega ramp.",
@@ -97,7 +88,7 @@ export const CARS: CarDef[] = [
   {
     id: "ekart",
     name: "Spark Kart",
-    file: kart.url,
+    file: "/models/kart-oopi.glb",
     price: 1100,
     tag: "ELECTRIC",
     electric: true,
@@ -149,13 +140,13 @@ export const CARS: CarDef[] = [
     scale: 1.7,
     stats: { top: 59, accel: 26, handling: 2.7, boost: 1.65, air: 8.4, landing: 1.0 },
   },
-  { id: "apex", name: "Apex GT", file: apex.url, price: 18000, tag: "ELITE", desc: "Circuit-bred precision with planted traction.", scale: 1, elite: true, special: { name: "Track Grip", desc: "35% stronger lateral traction", traction: 1.35 }, stats: { top: 65, accel: 34, handling: 3, boost: 1.95, air: 9.2, landing: 1.6 } },
-  { id: "solaris", name: "Solaris R", file: solaris.url, price: 32000, tag: "ELITE", desc: "A solar-orange racer with an endurance boost cell.", scale: 1, elite: true, special: { name: "Long Burn", desc: "2 extra seconds of boost", boostSeconds: 2 }, stats: { top: 68, accel: 36, handling: 3.05, boost: 2, air: 9.5, landing: 1.65 } },
-  { id: "inferno", name: "Inferno RS", file: inferno.url, price: 55000, tag: "ELITE", desc: "Red-hot speed with a rapid-recharge turbo.", scale: 1, elite: true, special: { name: "Flash Recharge", desc: "Boost recharges 40% faster", recharge: 0.6 }, stats: { top: 71, accel: 38, handling: 3.1, boost: 2.05, air: 9.8, landing: 1.7 } },
-  { id: "phantom", name: "Phantom GT", file: phantom.url, price: 85000, tag: "ELITE", desc: "Royal-violet precision with predictive air control.", scale: 1, elite: true, special: { name: "Flight Stabilizer", desc: "Twice the air-leveling response", airAssist: 2 }, stats: { top: 74, accel: 40, handling: 3.15, boost: 2.1, air: 10.1, landing: 1.75 } },
-  { id: "vortex", name: "Vortex RX", file: vortex.url, price: 125000, tag: "ELITE", desc: "A compact stunt machine built for big trick payouts.", scale: 1, elite: true, special: { name: "Stunt Dividend", desc: "50% more wheels from tricks", reward: 1.5 }, stats: { top: 77, accel: 42, handling: 3.2, boost: 2.15, air: 10.4, landing: 1.8 } },
-  { id: "pulse", name: "Pulse EV", file: pulse.url, price: 190000, tag: "ELITE ELECTRIC", electric: true, desc: "Instant electric torque and a long-range wheel collector.", scale: 1, elite: true, special: { name: "Magnetic Field", desc: "5 extra meters of pickup radius", magnet: 5 }, stats: { top: 80, accel: 44, handling: 3.25, boost: 2.2, air: 10.7, landing: 1.85 } },
-  { id: "singularity", name: "Singularity X", file: singularity.url, price: 300000, tag: "ELITE ELECTRIC", electric: true, desc: "Next-generation open-wheel power with advanced energy recovery.", scale: 1, elite: true, special: { name: "Quantum Drive", desc: "Half boost cooldown + 75% more trick wheels", recharge: 0.5, reward: 1.75 }, stats: { top: 84, accel: 47, handling: 3.35, boost: 2.25, air: 11, landing: 1.9 } },
+  { id: "apex", name: "Apex GT", file: "/models/race.glb", price: 18000, tag: "ELITE", desc: "Circuit-bred precision with planted traction.", scale: 1, elite: true, special: { name: "Track Grip", desc: "35% stronger lateral traction", traction: 1.35 }, stats: { top: 65, accel: 34, handling: 3, boost: 1.95, air: 9.2, landing: 1.6 } },
+  { id: "solaris", name: "Solaris R", file: "/models/race.glb", price: 32000, tag: "ELITE", desc: "A solar-orange racer with an endurance boost cell.", scale: 1, elite: true, special: { name: "Long Burn", desc: "2 extra seconds of boost", boostSeconds: 2 }, stats: { top: 68, accel: 36, handling: 3.05, boost: 2, air: 9.5, landing: 1.65 } },
+  { id: "inferno", name: "Inferno RS", file: "/models/race.glb", price: 55000, tag: "ELITE", desc: "Red-hot speed with a rapid-recharge turbo.", scale: 1, elite: true, special: { name: "Flash Recharge", desc: "Boost recharges 40% faster", recharge: 0.6 }, stats: { top: 71, accel: 38, handling: 3.1, boost: 2.05, air: 9.8, landing: 1.7 } },
+  { id: "phantom", name: "Phantom GT", file: "/models/race.glb", price: 85000, tag: "ELITE", desc: "Royal-violet precision with predictive air control.", scale: 1, elite: true, special: { name: "Flight Stabilizer", desc: "Twice the air-leveling response", airAssist: 2 }, stats: { top: 74, accel: 40, handling: 3.15, boost: 2.1, air: 10.1, landing: 1.75 } },
+  { id: "vortex", name: "Vortex RX", file: "/models/race-future.glb", price: 125000, tag: "ELITE", desc: "A compact stunt machine built for big trick payouts.", scale: 1, elite: true, special: { name: "Stunt Dividend", desc: "50% more wheels from tricks", reward: 1.5 }, stats: { top: 77, accel: 42, handling: 3.2, boost: 2.15, air: 10.4, landing: 1.8 } },
+  { id: "pulse", name: "Pulse EV", file: "/models/race-future.glb", price: 190000, tag: "ELITE ELECTRIC", electric: true, desc: "Instant electric torque and a long-range wheel collector.", scale: 1, elite: true, special: { name: "Magnetic Field", desc: "5 extra meters of pickup radius", magnet: 5 }, stats: { top: 80, accel: 44, handling: 3.25, boost: 2.2, air: 10.7, landing: 1.85 } },
+  { id: "singularity", name: "Singularity X", file: "/models/race-future.glb", price: 300000, tag: "ELITE ELECTRIC", electric: true, desc: "Next-generation open-wheel power with advanced energy recovery.", scale: 1, elite: true, special: { name: "Quantum Drive", desc: "Half boost cooldown + 75% more trick wheels", recharge: 0.5, reward: 1.75 }, stats: { top: 84, accel: 47, handling: 3.35, boost: 2.25, air: 11, landing: 1.9 } },
   { id: "avtr", name: "Mercedes Vision AVTR", file: "", price: 500000, tag: "ULTIMATE CONCEPT", electric: true, elite: true, desc: "Bionic flaps, illuminated spherical wheels and an organic silver canopy. The ultimate mountain machine.", scale: 1, special: { name: "Bionic Drive", desc: "2× trick wheels · 60% faster recharge · +7m magnet · adaptive grip and air leveling", recharge: 0.4, reward: 2, magnet: 7, traction: 1.5, airAssist: 2.5, boostSeconds: 3 }, stats: { top: 90, accel: 52, handling: 3.5, boost: 2.35, air: 11.5, landing: 2 } },
 ];
 
