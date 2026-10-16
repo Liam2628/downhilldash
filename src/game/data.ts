@@ -192,6 +192,14 @@ export const UPGRADES: { id: UpgradeId; name: string; desc: string; costs: numbe
   { id: "aero", name: "Active Aero", desc: "+2% top speed & faster air leveling per level", costs: [400, 1000, 2200, 5000, 10000] },
 ];
 
+export type ShopItemId = "airbag" | "magnet" | "doubler" | "nitro";
+export const SHOP_ITEMS: { id: ShopItemId; name: string; desc: string; price: number; max: number }[] = [
+  { id: "airbag", name: "Airbag", desc: "Saves you from one crash, then it's used up", price: 1500, max: 5 },
+  { id: "magnet", name: "Wheel Magnet", desc: "Next run: grab wheels from 6 m farther away", price: 1000, max: 5 },
+  { id: "doubler", name: "Wheel Doubler", desc: "Next run: every wheel you earn counts double", price: 3000, max: 5 },
+  { id: "nitro", name: "Nitro Can", desc: "Next run: boost recharges twice as fast", price: 1200, max: 5 },
+];
+
 export type EquipmentId = "chrome" | "halo" | "wing";
 export const EQUIPMENT: { id: EquipmentId; name: string; desc: string; price: number }[] = [
   { id: "chrome", name: "Chrome Rims", desc: "Polished silver wheel faces", price: 2500 },

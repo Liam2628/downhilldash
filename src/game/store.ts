@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { CARS, EQUIPMENT, UPGRADES, type EquipmentId, type UpgradeId } from "./data";
+import { CARS, EQUIPMENT, UPGRADES, SHOP_ITEMS, type EquipmentId, type ShopItemId, type UpgradeId } from "./data";
 
 // --- Save integrity -------------------------------------------------------
 // The save lives in localStorage, which anyone can edit by hand. To stop a
@@ -76,6 +76,7 @@ export function sanitizeSave(p: Partial<Save>): Partial<Save> {
   out.equipmentOwned = Array.isArray(p.equipmentOwned) ? p.equipmentOwned.filter((id) => EQUIPMENT.some((e) => e.id === id)) : [];
   out.rims = p.rims === "chrome" || p.rims === "halo" ? (out.equipmentOwned.includes(p.rims) ? p.rims : null) : null;
   out.wing = p.wing === true && out.equipmentOwned.includes("wing");
+  out.items = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, clampInt(p.items?.[i.id], 0, i.max, 0)])) as Record<ShopItemId, number>;
   out.upgrades = Object.fromEntries(UPGRADES.map((u) => [u.id, clampInt(p.upgrades?.[u.id], 0, u.costs.length, 0)])) as Record<UpgradeId, number>;
   const c = (p.cheats ?? {}) as Partial<Cheats>;
   out.cheats = out.cheatsUnlocked
@@ -127,6 +128,7 @@ export type Save = {
   equipmentOwned: EquipmentId[];
   rims: "chrome" | "halo" | null;
   wing: boolean;
+  items: Record<ShopItemId, number>;
   settings: Settings;
   best: number | null;
   bestTricks: number;
@@ -153,6 +155,8 @@ type SaveActions = {
   buyEquipment: (id: EquipmentId) => boolean;
   setRims: (rims: "chrome" | "halo" | null) => void;
   setWing: (v: boolean) => void;
+  buyItem: (id: ShopItemId) => boolean;
+  useItem: (id: ShopItemId) => boolean;
   setSettings: (p: Partial<Settings>) => void;
   recordRun: (time: number, tricks: number) => boolean;
   claimDaily: (day: string) => void;
@@ -177,6 +181,7 @@ const initial: Save = {
   equipmentOwned: [],
   rims: null,
   wing: false,
+  items: { airbag: 0, magnet: 0, doubler: 0, nitro: 0 },
   settings: {
     volume: 1,
     muted: false,
@@ -254,6 +259,19 @@ export const useSave = create<Save & SaveActions>()(
       setWing: (v) => {
         if (!v || get().equipmentOwned.includes("wing")) set({ wing: v });
       },
+      buyItem: (id) => {
+        const it = SHOP_ITEMS.find((i) => i.id === id);
+        const have = get().items?.[id] ?? 0;
+        if (!it || have >= it.max || !get().spend(it.price)) return false;
+        set({ items: { ...initial.items, ...get().items, [id]: have + 1 } });
+        return true;
+      },
+      useItem: (id) => {
+        const have = get().items?.[id] ?? 0;
+        if (have <= 0) return false;
+        set({ items: { ...initial.items, ...get().items, [id]: have - 1 } });
+        return true;
+      },
       setSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       recordRun: (time, tricks) => {
         const s = get();
@@ -307,7 +325,7 @@ export const useSave = create<Save & SaveActions>()(
 );
 
 export type Mode = "title" | "hub" | "run" | "menu" | "finished";
-export type MenuId = "garage" | "dealer" | "tuning";
+export type MenuId = "garage" | "dealer" | "tuning" | "shop";
 
 export type Popup = { id: number; text: string; sub?: string; tone: "gold" | "hot" | "cool" | "bad" };
 

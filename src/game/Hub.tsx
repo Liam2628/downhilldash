@@ -96,6 +96,30 @@ function DoorMarker({ b }: { b: HubBuilding }) {
   );
 }
 
+/** Parked parts van with an open service hatch facing the plaza. */
+function ShopVan({ b }: { b: HubBuilding }) {
+  const [cx, cz] = b.center;
+  return (
+    <group position={[cx, 0, cz]}>
+      <group rotation-y={Math.PI / 2} scale={2.2}>
+        <CarModel carId="van" paint="#ff6b00" />
+      </group>
+      {/* awning over the service hatch */}
+      <mesh position={[-2.6, 3.2, 0]} rotation-z={0.25} castShadow>
+        <boxGeometry args={[2.2, 0.08, 6]} />
+        <meshStandardMaterial color="#ffffff" />
+      </mesh>
+      {[-2.6, 2.6].map((z) => (
+        <mesh key={z} position={[-3.6, 1.5, z]}>
+          <cylinderGeometry args={[0.06, 0.06, 3]} />
+          <meshStandardMaterial color="#333" metalness={0.6} />
+        </mesh>
+      ))}
+      <Sign position={[-2.4, 5.4, 0]} rotation-y={-Math.PI / 2} text="PARTS VAN" sub="AIRBAGS · MAGNETS · NITRO" w={5.5} h={1.6} bg="#1a1a1f" border="#ff6b00" />
+    </group>
+  );
+}
+
 function Building({ b }: { b: HubBuilding }) {
   const [w, h, d] = b.size;
   const style = b.id;
@@ -537,7 +561,7 @@ export function Hub() {
       {HUB_BUILDINGS.map((b) => (
         <group key={b.id}>
           <Suspense fallback={null}>
-            <Building b={b} />
+            {b.id === "shop" ? <ShopVan b={b} /> : <Building b={b} />}
           </Suspense>
           <DoorMarker b={b} />
         </group>

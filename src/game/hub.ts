@@ -38,6 +38,15 @@ export const HUB_BUILDINGS: HubBuilding[] = [
     exit: { x: 0, z: 68, yaw: Math.PI },
     door: { x: 0, z: 79, rotY: Math.PI },
   },
+  {
+    id: "shop",
+    label: "PARTS VAN",
+    center: [42, 60],
+    size: [4, 4, 8],
+    trigger: { x: 34.5, z: 60, hx: 1.6, hz: 3 },
+    exit: { x: 28, z: 60, yaw: -Math.PI / 2 },
+    door: { x: 39.5, z: 60, rotY: -Math.PI / 2 },
+  },
 ];
 
 export const SPAWN = { x: 0, z: 46, yaw: Math.PI };
