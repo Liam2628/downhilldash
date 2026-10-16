@@ -20,3 +20,4 @@
 - Generate multi-chunk areas independently of 100 m streaming chunks so playable pacing does not depend on renderer window size.
 - Area layouts use five authored presets drawn from per-type shuffled bags, and a shared boost placement policy resolves feature approaches across chunk boundaries before rendering, keeping variation and safety independent of streaming.
 - Anchor roadside props through terrainMeshY's triangle interpolation so their bases match the rendered terrain rather than a separate smooth height approximation.
+- Normalize cloned vehicle assets by catalog length, centered in X/Z and grounded at Y=0; source-file scales vary and must not determine gameplay size.

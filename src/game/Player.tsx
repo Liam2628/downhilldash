@@ -3,7 +3,7 @@ import { Suspense, useRef } from "react";
 import * as THREE from "three";
 import { Trail } from "@react-three/drei";
 import { CarModel, type CarHandle } from "./CarModel";
-import { P, step } from "./physics";
+import { P, step, spec } from "./physics";
 import { useGame, useSave } from "./store";
 import { orbit } from "./input";
 import { view } from "./quests";
@@ -25,7 +25,7 @@ export function Player() {
   const camLook = useRef(new THREE.Vector3(0, 1, 30));
   const loopView = useRef(new THREE.Vector3());
   const airLift = useRef(0);
-  const { camera } = useThree();
+  const { camera, size } = useThree();
 
   const mode = useGame((s) => s.mode);
   const menu = useGame((s) => s.menu);
@@ -34,7 +34,8 @@ export function Player() {
   const paints = useSave((s) => s.paints);
   const glow = useSave((s) => s.glow);
   const trail = useSave((s) => s.trail);
-  const carId = mode === "menu" && menu === "dealer" && preview ? preview : selected;
+  const testCar = useGame((s) => s.testCar);
+  const carId = testCar ? testCar : mode === "menu" && menu === "dealer" && preview ? preview : selected;
   const paint = paints[carId] ?? null;
 
   useFrame((state, rawDt) => {
@@ -96,6 +97,12 @@ export function Player() {
 
     // ---------- camera ----------
     const cam = camera as THREE.PerspectiveCamera;
+    // Leave the vehicle visible beside the dealership instead of behind it.
+    if (g.mode === "menu" && size.width > 640) {
+      cam.setViewOffset(size.width, size.height, size.width * 0.2, 0, size.width, size.height);
+    } else if (cam.view?.enabled) {
+      cam.clearViewOffset();
+    }
     const k = 1 - Math.exp(-6 * dt);
     let fovTarget = Math.min(110, settings.fov + Math.min(18, Math.abs(P.speed) * 0.24) + (P.boosting ? 8 : 0));
 
@@ -136,6 +143,12 @@ export function Player() {
       const ahead = hood ? 14 : 4;
       tmpLook.set(P.x + fx * ahead * (1 - P.loopCamera), P.y + (hood ? 1.1 : 1.4) * (1 - P.loopCamera), P.z + fz * ahead * (1 - P.loopCamera));
       camLook.current.lerp(tmpLook, 1 - Math.exp(-10 * dt));
+    }
+    if (spec.active && (g.mode === "run" || g.mode === "hub")) {
+      tmpV.set(spec.x, spec.y, spec.z);
+      cam.position.copy(tmpV);
+      tmpLook.set(spec.x + Math.sin(spec.yaw) * 10, spec.y - 2, spec.z + Math.cos(spec.yaw) * 10);
+      camLook.current.copy(tmpLook);
     }
     if (P.snapCam) {
       cam.position.copy(tmpV); camLook.current.copy(tmpLook); P.snapCam = false;

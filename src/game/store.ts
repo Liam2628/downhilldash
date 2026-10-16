@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { CARS, type UpgradeId } from "./data";
+import { CARS, EQUIPMENT, UPGRADES, type EquipmentId, type UpgradeId } from "./data";
 
 // --- Save integrity -------------------------------------------------------
 // The save lives in localStorage, which anyone can edit by hand. To stop a
@@ -62,15 +62,25 @@ const CAR_IDS = new Set(CARS.map((c) => c.id));
 const clampInt = (n: unknown, min: number, max: number, fallback: number) =>
   typeof n === "number" && Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
 
-function sanitizeSave(p: Partial<Save>): Partial<Save> {
+export function sanitizeSave(p: Partial<Save>): Partial<Save> {
   const out: Partial<Save> = { ...p };
-  out.wheels = clampInt(p.wheels, 0, 9_999_999, 0);
+  out.wheels = clampInt(p.wheels, 0, Number.MAX_SAFE_INTEGER, 0);
+  out.xp = clampInt(p.xp, 0, Number.MAX_SAFE_INTEGER, 0);
   out.owned = Array.isArray(p.owned) ? p.owned.filter((id) => CAR_IDS.has(id)) : initial.owned;
   if (out.owned.length === 0) out.owned = initial.owned;
   out.selected = typeof p.selected === "string" && out.owned.includes(p.selected) ? p.selected : out.owned[0];
   out.best = typeof p.best === "number" && Number.isFinite(p.best) && p.best > 0 ? p.best : null;
   out.bestTricks = clampInt(p.bestTricks, 0, 9_999_999, 0);
   out.runs = clampInt(p.runs, 0, 9_999_999, 0);
+  out.cheatsUnlocked = p.cheatsUnlocked === true;
+  out.equipmentOwned = Array.isArray(p.equipmentOwned) ? p.equipmentOwned.filter((id) => EQUIPMENT.some((e) => e.id === id)) : [];
+  out.rims = p.rims === "chrome" || p.rims === "halo" ? (out.equipmentOwned.includes(p.rims) ? p.rims : null) : null;
+  out.wing = p.wing === true && out.equipmentOwned.includes("wing");
+  out.upgrades = Object.fromEntries(UPGRADES.map((u) => [u.id, clampInt(p.upgrades?.[u.id], 0, u.costs.length, 0)])) as Record<UpgradeId, number>;
+  const c = (p.cheats ?? {}) as Partial<Cheats>;
+  out.cheats = out.cheatsUnlocked
+    ? { unlimitedBoost: c.unlimitedBoost === true, moonGravity: c.moonGravity === true, superSpeed: c.superSpeed === true, fly: c.fly === true, noclip: c.noclip === true, spectator: c.spectator === true }
+    : { ...initial.cheats };
   return out;
 }
 
@@ -82,6 +92,7 @@ export type Settings = {
   camDist: number;
   units: "kmh" | "mph";
   showFps: boolean;
+  hideUi?: boolean;
   speedLines: boolean;
   hideControls: boolean;
   keys: KeyBinds;
@@ -102,8 +113,9 @@ export const DEFAULT_KEYS: KeyBinds = {
   level: ["KeyF"],
 };
 
-type Save = {
+export type Save = {
   wheels: number;
+  xp: number;
   owned: string[];
   selected: string;
   paints: Record<string, string | null>;
@@ -112,15 +124,23 @@ type Save = {
   trail: string | null;
   trailUnlocked: boolean;
   upgrades: Record<UpgradeId, number>;
+  equipmentOwned: EquipmentId[];
+  rims: "chrome" | "halo" | null;
+  wing: boolean;
   settings: Settings;
   best: number | null;
   bestTricks: number;
   runs: number;
   lastDaily: string | null;
+  cheatsUnlocked: boolean;
+  cheats: Cheats;
 };
+
+export type Cheats = { unlimitedBoost: boolean; moonGravity: boolean; superSpeed: boolean; fly: boolean; noclip: boolean; spectator: boolean };
 
 type SaveActions = {
   addWheels: (n: number) => void;
+  addXp: (n: number) => void;
   spend: (n: number) => boolean;
   buyCar: (id: string, price: number) => boolean;
   selectCar: (id: string) => void;
@@ -130,14 +150,22 @@ type SaveActions = {
   unlockGlow: (price: number) => boolean;
   unlockTrail: (price: number) => boolean;
   buyUpgrade: (id: UpgradeId, cost: number) => boolean;
+  buyEquipment: (id: EquipmentId) => boolean;
+  setRims: (rims: "chrome" | "halo" | null) => void;
+  setWing: (v: boolean) => void;
   setSettings: (p: Partial<Settings>) => void;
   recordRun: (time: number, tricks: number) => boolean;
   claimDaily: (day: string) => void;
   reset: () => void;
+  unlockCheats: () => void;
+  setCheat: (k: keyof Cheats, v: boolean) => void;
+  cheatAllCars: () => void;
+  cheatMaxUpgrades: () => void;
 };
 
 const initial: Save = {
   wheels: 0,
+  xp: 0,
   owned: ["sedan"],
   selected: "sedan",
   paints: {},
@@ -145,7 +173,10 @@ const initial: Save = {
   glowUnlocked: false,
   trail: null,
   trailUnlocked: false,
-  upgrades: { engine: 0, nitro: 0, cooler: 0, grip: 0, magnet: 0 },
+  upgrades: { engine: 0, nitro: 0, cooler: 0, grip: 0, magnet: 0, suspension: 0, aero: 0 },
+  equipmentOwned: [],
+  rims: null,
+  wing: false,
   settings: {
     volume: 1,
     muted: false,
@@ -154,6 +185,7 @@ const initial: Save = {
     camDist: 1,
     units: "kmh",
     showFps: false,
+    hideUi: false,
     speedLines: true,
     hideControls: false,
     keys: DEFAULT_KEYS,
@@ -162,6 +194,8 @@ const initial: Save = {
   bestTricks: 0,
   runs: 0,
   lastDaily: null,
+  cheatsUnlocked: false,
+  cheats: { unlimitedBoost: false, moonGravity: false, superSpeed: false, fly: false, noclip: false, spectator: false },
 };
 
 export const useSave = create<Save & SaveActions>()(
@@ -169,6 +203,7 @@ export const useSave = create<Save & SaveActions>()(
     (set, get) => ({
       ...initial,
       addWheels: (n) => set({ wheels: get().wheels + n }),
+      addXp: (n) => set({ xp: get().xp + Math.max(0, Math.round(n)) }),
       spend: (n) => {
         if (get().wheels < n) return false;
         set({ wheels: get().wheels - n });
@@ -200,9 +235,24 @@ export const useSave = create<Save & SaveActions>()(
         return true;
       },
       buyUpgrade: (id, cost) => {
+        const def = UPGRADES.find((u) => u.id === id);
+        const level = get().upgrades[id];
+        if (!def || level >= def.costs.length || cost !== def.costs[level]) return false;
         if (!get().spend(cost)) return false;
         set({ upgrades: { ...get().upgrades, [id]: get().upgrades[id] + 1 } });
         return true;
+      },
+      buyEquipment: (id) => {
+        const item = EQUIPMENT.find((e) => e.id === id);
+        if (!item || get().equipmentOwned.includes(id) || !get().spend(item.price)) return false;
+        set({ equipmentOwned: [...get().equipmentOwned, id] });
+        return true;
+      },
+      setRims: (rims) => {
+        if (rims === null || get().equipmentOwned.includes(rims)) set({ rims });
+      },
+      setWing: (v) => {
+        if (!v || get().equipmentOwned.includes("wing")) set({ wing: v });
       },
       setSettings: (p) => set({ settings: { ...get().settings, ...p } }),
       recordRun: (time, tricks) => {
@@ -217,6 +267,19 @@ export const useSave = create<Save & SaveActions>()(
       },
       claimDaily: (day) => set({ lastDaily: day }),
       reset: () => set({ ...initial }),
+      unlockCheats: () => set({ cheatsUnlocked: true }),
+      setCheat: (k, v) => {
+        if (get().cheatsUnlocked) set({ cheats: { ...get().cheats, [k]: v } });
+      },
+      cheatAllCars: () => {
+        if (get().cheatsUnlocked) set({ owned: CARS.map((c) => c.id) });
+      },
+      cheatMaxUpgrades: () => {
+        if (!get().cheatsUnlocked) return;
+        const u = { ...get().upgrades };
+        for (const k of Object.keys(u) as UpgradeId[]) u[k] = 5;
+        set({ upgrades: u });
+      },
     }),
     {
       name: "downhill-drive-save-v1",
@@ -274,12 +337,16 @@ type GameState = {
   mode: Mode;
   menu: MenuId | null;
   preview: string | null;
+  testCar: string | null;
+  setTestCar: (id: string | null) => void;
   settingsOpen: boolean;
   chestOpen: boolean;
   setChestOpen: (v: boolean) => void;
   hud: Hud;
   popups: Popup[];
   finish: FinishResult | null;
+  milestone: FinishResult | null;
+  setMilestone: (f: FinishResult | null) => void;
   hint: string | null;
   setMode: (m: Mode) => void;
   openMenu: (m: MenuId) => void;
@@ -299,6 +366,8 @@ export const useGame = create<GameState>()((set, get) => ({
   mode: "title",
   menu: null,
   preview: null,
+  testCar: null,
+  setTestCar: (id) => set({ testCar: id }),
   settingsOpen: false,
   chestOpen: false,
   setChestOpen: (v) => set({ chestOpen: v }),
@@ -316,6 +385,8 @@ export const useGame = create<GameState>()((set, get) => ({
   },
   popups: [],
   finish: null,
+  milestone: null,
+  setMilestone: (f) => set({ milestone: f }),
   hint: null,
   setMode: (m) => set({ mode: m }),
   openMenu: (m) => set({ mode: "menu", menu: m, preview: null }),

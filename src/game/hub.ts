@@ -46,6 +46,10 @@ export const DAILY_PAD = { x: -18, z: 62, r: 3.2 };
 export const STATS_BOARD = { x: 20, z: 64 };
 export const GATE_HALF = 10;
 
+/** Separate oval test track east of the lobby: never connects to the real run. */
+export const TEST_TRACK = { x: 175, z: 70, rx: 40, rz: 26, width: 11 };
+export const TEST_BOUNDS = { minX: 125, maxX: 225, minZ: 34, maxZ: 106 };
+
 /** Solid round obstacles in the lobby: x, z, radius, kind */
 export const HUB_SOLIDS: { x: number; z: number; r: number; kind: "metal" | "wood" | "tree" | "concrete" }[] = [
   { x: -GATE_HALF - 1.5, z: 2, r: 1.3, kind: "concrete" },

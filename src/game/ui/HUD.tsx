@@ -1,3 +1,4 @@
+import { AccountPrompt, TitleAccount } from "./Account";
 import { useEffect, useRef, useState } from "react";
 import { QUESTS, useQuests } from "../quests";
 import { useGame, useSave } from "../store";
@@ -6,7 +7,7 @@ import { returnToLobby } from "../physics";
 import { WheelIcon } from "./WheelIcon";
 import { MenuPanel } from "./Menus";
 import { SettingsModal } from "./Settings";
-import { Settings2, Volume2, VolumeX, X, Zap } from "lucide-react";
+import { Settings2, ShoppingCart, Volume2, VolumeX, X, Zap } from "lucide-react";
 import { keyLabel, virtual } from "../input";
 import type { Action } from "../store";
 import { DailyChest } from "./DailyChest";
@@ -37,6 +38,22 @@ function WheelCounter() {
   );
 }
 
+function XpCounter() {
+  const xp = useSave((s) => s.xp);
+  const [bump, setBump] = useState(0);
+  const prev = useRef(xp);
+  useEffect(() => {
+    if (xp > prev.current) setBump((b) => b + 1);
+    prev.current = xp;
+  }, [xp]);
+  return (
+    <div className="hud-chip flex items-center gap-2 px-3 py-1" aria-label="Experience points">
+      <span key={bump} className="animate-wheel-bump inline-flex rounded-md bg-cool px-1.5 font-display text-xs text-panel">XP</span>
+      <span className="font-display text-lg text-cool tabular-nums">{xp.toLocaleString()}</span>
+    </div>
+  );
+}
+
 function TopBar() {
   const setSettingsOpen = useGame((s) => s.setSettingsOpen);
   const muted = useSave((s) => s.settings.muted);
@@ -46,10 +63,23 @@ function TopBar() {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4">
       <div className="pointer-events-auto flex items-center gap-3">
-        <WheelCounter />
+        <div className="flex flex-col items-start gap-1.5">
+          <WheelCounter />
+          <XpCounter />
+        </div>
         {showFps && <div className="hud-chip px-2 py-1 font-mono text-xs">{fps} FPS</div>}
       </div>
       <div className="pointer-events-auto flex gap-2">
+        <button
+          aria-label="Shop"
+          className="hud-chip p-2.5"
+          onClick={() => {
+            audio.play("ui");
+            useGame.getState().openMenu("tuning");
+          }}
+        >
+          <ShoppingCart className="h-5 w-5" />
+        </button>
         <button
           aria-label={muted ? "Unmute" : "Mute"}
           className="hud-chip p-2.5"
@@ -243,7 +273,7 @@ function QuestPanel() {
   const best = useQuests((s) => s.best);
   const done = useQuests((s) => s.done);
   return (
-    <div className="pointer-events-none absolute left-4 top-24 w-64 rounded-xl border-2 border-panel-border bg-panel/90 p-3 text-panel-foreground shadow-[var(--shadow-chunky)]">
+    <div className="pointer-events-none absolute right-4 top-32 w-64 rounded-xl border-2 border-panel-border bg-panel/90 p-3 text-panel-foreground shadow-[var(--shadow-chunky)]">
       <div className="mb-2 font-display text-sm text-gold">DAILY QUESTS</div>
       {QUESTS.map((q) => {
         const v = Math.min(q.goal, Math.max(run[q.id], q.id === "combo" ? best[q.id] : run[q.id]));
@@ -361,14 +391,13 @@ function TitleScreen() {
       <button className="btn-game btn-hot mt-8 px-10 py-4 text-3xl" onClick={start}>
         PLAY
       </button>
+      <TitleAccount />
       {(wheels > 0 || runs > 0) && (
         <div className="mt-4 flex items-center gap-2 font-display text-panel-foreground text-outline">
           Welcome back · <WheelIcon className="h-5 w-5" /> {wheels.toLocaleString()}
         </div>
       )}
-      <div className="absolute bottom-4 text-xs text-panel-foreground/80 text-outline">
-        Car models by Kenney (CC0) · Best with keyboard
-      </div>
+      <div className="absolute bottom-4 text-xs text-panel-foreground/80 text-outline">Best with keyboard</div>
     </div>
   );
 }
@@ -401,6 +430,27 @@ function FinishPanel() {
   );
 }
 
+function MilestonePanel() {
+  const m = useGame((s) => s.milestone);
+  const setMilestone = useGame((s) => s.setMilestone);
+  if (!m) return null;
+  return (
+    <div className="pointer-events-auto absolute inset-0 flex cursor-pointer items-center justify-center bg-panel/40 backdrop-blur-sm" onClick={() => setMilestone(null)}>
+      <div className="panel animate-scale-in w-[min(440px,92vw)] p-7 text-center">
+        <div className="font-display text-4xl text-gold text-outline">FINISH LINE REACHED!</div>
+        <div className="mt-1 font-display text-hot">1,000 M · KEEP GOING</div>
+        <div className="mt-5 grid grid-cols-2 gap-3 text-left">
+          <Stat label="Time to 1,000 m" value={fmtTime(m.time)} />
+          <Stat label="Tricks landed" value={String(m.tricks)} />
+          <Stat label="Run wheels" value={m.wheels.toLocaleString()} />
+          <Stat label="Finish bonus" value={`+${m.bonus}`} />
+        </div>
+        <div className="mt-6 animate-pulse rounded-xl bg-hot/20 py-3 font-display text-lg text-hot">CLICK ANYWHERE OR PRESS SPACE TO KEEP GOING</div>
+      </div>
+    </div>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-panel-foreground/10 px-3 py-2">
@@ -414,6 +464,9 @@ export function HUD() {
   const mode = useGame((s) => s.mode);
   const settingsOpen = useGame((s) => s.settingsOpen);
   const chestOpen = useGame((s) => s.chestOpen);
+  const hideUi = useSave((s) => !!s.settings.hideUi);
+  const milestone = useGame((s) => !!s.milestone);
+  if (hideUi && !settingsOpen && !milestone && (mode === "hub" || mode === "run")) return null;
   return (
     <div className="pointer-events-none absolute inset-0 font-sans text-panel-foreground">
       <SpeedLines />
@@ -433,6 +486,7 @@ export function HUD() {
             </>
           )}
           {mode === "run" && <RunBar />}
+          {mode === "run" && <MilestonePanel />}
           <Hint />
           <Popups />
           {mode === "menu" && (
@@ -452,6 +506,7 @@ export function HUD() {
           <DailyChest />
         </div>
       )}
+      <AccountPrompt />
       {settingsOpen && (
         <div className="pointer-events-auto">
           <SettingsModal />

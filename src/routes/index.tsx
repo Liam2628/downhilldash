@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Game } from "@/game/Game";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
+
+const Game = lazy(() => import("@/game/Game").then((m) => ({ default: m.Game })));
 
 export const Route = createFileRoute("/")({
-  ssr: false,
   staticData: { sitemap: true },
   head: () => ({
     meta: [
@@ -19,5 +20,35 @@ export const Route = createFileRoute("/")({
     ],
     links: [{ rel: "canonical", href: "https://downhilldash.lovable.app/" }],
   }),
-  component: Game,
+  component: Home,
 });
+
+function About() {
+  return (
+    <main className="fixed inset-0 flex items-center justify-center bg-sky p-6">
+      <article className="panel max-w-xl p-6">
+        <h1 className="font-display text-3xl text-gold">Downhill Dash</h1>
+        <h2 className="mt-2 font-display text-xl">A free browser stunt simulator</h2>
+        <p className="mt-3 text-sm opacity-80">
+          Race down an endless mountain road packed with ramps, loops, boost pads and Mega Launches. Chain flips, barrel rolls,
+          spins and combo tricks like corks and rodeos to earn wheels.
+        </p>
+        <p className="mt-2 text-sm opacity-80">
+          Spend wheels on new cars plus tuning upgrades, paint, underglow, rims and
+          wings. Open the daily reward chest and complete quests for bonuses.
+        </p>
+        <p className="mt-4 text-xs opacity-60">Loading the game…</p>
+      </article>
+    </main>
+  );
+}
+
+function Home() {
+  return (
+    <ClientOnly fallback={<About />}>
+      <Suspense fallback={<About />}>
+        <Game />
+      </Suspense>
+    </ClientOnly>
+  );
+}

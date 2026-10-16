@@ -27,8 +27,9 @@ import {
   solidY,
   type Loop,
 } from "./track";
-import { DAILY_PAD, GATE_HALF, HUB_BOUNDS, HUB_BUILDINGS, HUB_CONES, HUB_SOLIDS, SPAWN } from "./hub";
+import { DAILY_PAD, GATE_HALF, HUB_BOUNDS, TEST_BOUNDS, TEST_TRACK, HUB_BUILDINGS, HUB_CONES, HUB_SOLIDS, SPAWN } from "./hub";
 import { k, doubleTap, keys } from "./input";
+import { TrickTracker } from "./tricks";
 import { QUESTS, SPLITS, loadSplitPB, questProgress, questsNewRun, saveSplitPB } from "./quests";
 import { audio, type CrashKind } from "./audio";
 
@@ -139,13 +140,16 @@ export function resetRun() {
   splitPB = loadSplitPB();
   splitNow = [];
   P.runTime = 0;
+  finishMilestonePassed = false;
   P.runWheels = 0;
   P.runTricks = 0;
   P.combo = 1;
   P.bestCombo = 1;
 }
 
+const tricks = new TrickTracker();
 function resetAir() {
+  tricks.reset();
   P.tYaw = 0;
   P.tPitch = 0;
   P.tRoll = 0;
@@ -182,7 +186,12 @@ export function teleport(x: number, z: number, yaw: number) {
   resetAir();
 }
 
+export const MILESTONE_S = 1000;
+let finishMilestonePassed = false;
+
 export function returnToLobby() {
+  useGame.getState().setMilestone(null);
+  useGame.getState().setTestCar(null);
   teleport(SPAWN.x, SPAWN.z, SPAWN.yaw);
   P.boostT = 0;
   P.cooldownT = 0;
@@ -190,6 +199,31 @@ export function returnToLobby() {
   const g = useGame.getState();
   g.setFinish(null);
   g.setMode("hub");
+}
+
+export function startTestDrive(id: string) {
+  const g = useGame.getState();
+  g.closeMenu();
+  g.setTestCar(id);
+  teleport(TEST_TRACK.x, TEST_TRACK.z - TEST_TRACK.rz, Math.PI / 2);
+  P.speed = 0;
+  P.boostT = 0;
+  P.cooldownT = 0;
+  P.snapCam = true;
+  g.popup("TEST DRIVE", "cool", "Practice track · Esc to finish");
+}
+
+export function endTestDrive() {
+  const g = useGame.getState();
+  const id = g.testCar;
+  if (!id) return;
+  g.setTestCar(null);
+  const b = HUB_BUILDINGS.find((h) => h.id === "dealer")!;
+  P.speed = 0;
+  teleport(b.trigger.x, b.trigger.z, b.exit.yaw + Math.PI);
+  P.snapCam = true;
+  g.openMenu("dealer");
+  g.setPreview(id);
 }
 
 export function exitMenu() {
@@ -200,21 +234,33 @@ export function exitMenu() {
   P.snapCam = true;
 }
 
+function gravityScale() {
+  const s = useSave.getState();
+  return s.cheatsUnlocked && s.cheats.moonGravity ? 0.4 : 1;
+}
+
 export function currentStats() {
   const s = useSave.getState();
-  const def = carById(s.selected);
+  const def = carById(useGame.getState().testCar ?? s.selected);
   const base: CarStats = def.stats;
-  const u = s.upgrades;
+  const u = def.elite ? { engine: 5, nitro: 5, cooler: 5, grip: 5, magnet: 5, suspension: 5, aero: 5 } : s.upgrades;
+  const special = def.special;
   const eng = 1 + 0.04 * u.engine;
+  const ch = s.cheatsUnlocked ? s.cheats : null;
+  const spd = ch?.superSpeed ? 2 : 1;
   return {
     ...base,
     electric: !!def.electric,
-    top: base.top * eng,
-    accel: base.accel * eng,
+    top: base.top * eng * (1 + 0.02 * u.aero) * (ch?.superSpeed ? 1.5 : 1),
+    accel: base.accel * eng * spd,
     handling: base.handling * (1 + 0.07 * u.grip),
-    boostDur: 2 + 0.4 * u.nitro,
-    cooldown: Math.max(5, 14 - 0.8 * u.cooler),
-    magnet: 2.6 + 0.9 * u.magnet,
+    landing: base.landing * (1 + 0.08 * u.suspension),
+    boostDur: 2 + 0.4 * u.nitro + (special?.boostSeconds ?? 0),
+    cooldown: ch?.unlimitedBoost ? 0 : Math.max(5, 14 - 0.8 * u.cooler) * (special?.recharge ?? 1),
+    magnet: 2.6 + 0.9 * u.magnet + (special?.magnet ?? 0),
+    airLevel: (1 + 0.12 * u.aero) * (special?.airAssist ?? 1),
+    traction: (1 + 0.07 * u.grip) * (special?.traction ?? 1),
+    trickReward: special?.reward ?? 1,
   };
 }
 
@@ -285,31 +331,24 @@ function land(gy: number, stats: ReturnType<typeof currentStats>) {
     return;
   }
   if (air > 0.25) audio.land(Math.min(1, impactV / 25));
-  const parts: string[] = [];
-  let base = 0;
-  if (flips) {
-    parts.push((flips > 1 ? `${flips}x ` : "") + (P.tPitch < 0 ? "BACKFLIP" : "FRONTFLIP"));
-    if (P.tPitch < 0) { runBackflips += flips; questDone(questProgress("backflips", runBackflips)); }
-    base += flips * 18;
-  }
-  if (spins) {
-    parts.push(`${spins * 360}`);
-    base += spins * 12;
-  }
-  if (rolls) {
-    parts.push((rolls > 1 ? `${rolls}x ` : "") + "BARREL ROLL");
-    base += rolls * 14;
-  }
+  void spins; void flips; void rolls;
+  const ev = tricks.evaluate();
+  const parts: string[] = [...ev.parts];
+  let base = ev.pts;
+  if (ev.counts.backflips) { runBackflips += ev.counts.backflips; questDone(questProgress("backflips", runBackflips)); }
   if (air > 1.1) {
     parts.push(air > 2 ? "HUGE AIR" : "BIG AIR");
     base += Math.floor(air * 4);
   }
+  // XP: one grant per landing, from trick complexity only (air time excluded), separate from wheels.
+  const xp = ev.pts > 0 ? Math.round(ev.pts * (1 + (P.combo - 1) * 0.5)) : 0;
+  if (xp) useSave.getState().addXp(xp);
   if (base > 0) {
-    const reward = Math.round(base * P.combo);
+    const reward = Math.round(base * P.combo * stats.trickReward);
     award(reward);
     P.runTricks += 1;
     const comboTxt = P.combo > 1 ? ` x${P.combo.toFixed(1)}` : "";
-    useGame.getState().popup(parts.join(" + "), "hot", `+${reward} wheels${comboTxt}`);
+    useGame.getState().popup(parts.join(" + "), "hot", `+${reward} wheels${xp ? ` · +${xp} XP` : ""}${comboTxt}`);
     P.combo = Math.min(5, P.combo + 0.5);
     P.bestCombo = Math.max(P.bestCombo, P.combo);
     questDone(questProgress("combo", P.combo));
@@ -361,6 +400,7 @@ export function step(rawDt: number) {
   const elapsed = Math.max(0, Math.min(rawDt, 0.05));
   ensureTrack(Math.max(0, -P.z));
   syncGenerated();
+  if (freeMove(elapsed)) return;
   const count = Math.max(1, Math.ceil(elapsed / (1 / 120)));
   for (let i = 0; i < count; i++) stepPhysics(elapsed / count);
 }
@@ -421,7 +461,7 @@ function stepPhysics(rawDt: number) {
   }
 
   // paused
-  if (game.settingsOpen || game.chestOpen) {
+  if (game.settingsOpen || game.chestOpen || (game.milestone && mode === "run")) {
     audio.engine(0, false, false, P.electric);
     return;
   }
@@ -438,7 +478,8 @@ function stepPhysics(rawDt: number) {
   if (![P.x, P.y, P.z, P.speed, P.lateral].every(Number.isFinite) ||
       P.y < hAt(Math.max(0, sNow)) - 18 ||
       (P.z <= 0 && (Math.abs(P.x - cAt(sNow)) > HALF + 35)) ||
-      (P.z > 0 && (Math.abs(P.x) > 100 || P.z > HUB_BOUNDS.maxZ + 30))) {
+      (P.z > 0 && !game.testCar && (Math.abs(P.x) > 100 || P.z > HUB_BOUNDS.maxZ + 30)) ||
+      (game.testCar && (P.x < TEST_BOUNDS.minX - 20 || P.x > TEST_BOUNDS.maxX + 20 || P.z < TEST_BOUNDS.minZ - 20 || P.z > TEST_BOUNDS.maxZ + 20))) {
     returnToLobby();
     game.popup("BACK ON TRACK", "cool");
     return;
@@ -535,16 +576,18 @@ function stepPhysics(rawDt: number) {
     P.speed = oldSpeed * Math.cos(turn) + P.lateral * Math.sin(turn);
     P.lateral = P.lateral * Math.cos(turn) - oldSpeed * Math.sin(turn);
     const drift = Math.max(0, Math.min(1, (Math.abs(P.speed) - 22) / 18)) * Math.abs(P.steer);
-    const grip = (ROAD_GRIP + (DRIFT_GRIP - ROAD_GRIP) * drift) * (1 + useSave.getState().upgrades.grip * 0.07);
+    const grip = (ROAD_GRIP + (DRIFT_GRIP - ROAD_GRIP) * drift) * stats.traction;
     P.lateral *= Math.exp(-grip * dt);
     if (Math.abs(P.speed) < 0.1) P.lateral *= Math.exp(-12 * dt);
   } else {
-    P.vy -= G * dt;
+    P.vy -= G * gravityScale() * dt;
     P.speed *= Math.exp(-0.05 * dt);
     if (P.boosting) P.speed += 10 * dt;
     if (controls) {
+      const p0 = P.tPitch, r0 = P.tRoll, y0 = P.tYaw;
       // a little air steering so you can line up landings
       P.yaw += st * stats.handling * 0.35 * dt;
+      // Double-tap starts a full rotation; tapping again mid-trick switches into the new one.
       if (doubleTap("up")) { autoFlip = TAU; audio.play("trick"); }
       if (doubleTap("down")) { autoFlip = -TAU; audio.play("trick"); }
       if (autoFlip !== 0) {
@@ -552,9 +595,8 @@ function stepPhysics(rawDt: number) {
         P.tPitch += stepA; autoFlip -= stepA;
         if (Math.abs(autoFlip) < 1e-4) autoFlip = 0;
       }
-      // Double-press A/D for a barrel roll in that direction; holding W/S does nothing in the air.
-      if (doubleTap("left")) { autoRoll -= TAU; audio.play("trick"); }
-      if (doubleTap("right")) { autoRoll += TAU; audio.play("trick"); }
+      if (doubleTap("left")) { autoRoll = -TAU; audio.play("trick"); }
+      if (doubleTap("right")) { autoRoll = TAU; audio.play("trick"); }
       if (autoRoll !== 0) {
         const stepR = Math.min(Math.abs(autoRoll), (TAU / 0.7) * dt) * Math.sign(autoRoll);
         P.tRoll += stepR; autoRoll -= stepR;
@@ -563,7 +605,7 @@ function stepPhysics(rawDt: number) {
       // Release trick keys to ease toward the nearest full rotation; F levels faster.
       // Full turns are preserved so landing assistance does not erase trick rewards.
       const assist = k.level();
-      const ease = 1 - Math.exp(-(assist ? AIR_LEVEL_RATE : 2.2) * dt);
+      const ease = 1 - Math.exp(-(assist ? AIR_LEVEL_RATE : 2.2) * stats.airLevel * dt);
       if (autoFlip === 0) {
         const angle = P.takeoffPitch + P.tPitch;
         P.tPitch += (Math.round(angle / TAU) * TAU - angle) * ease;
@@ -577,7 +619,11 @@ function stepPhysics(rawDt: number) {
         P.speed *= Math.exp(-0.65 * dt);
         P.lateral *= Math.exp(-5 * dt);
       }
+      tricks.feed("pitch", P.tPitch - p0);
+      tricks.feed("roll", P.tRoll - r0);
+      tricks.feed("yaw", P.tYaw - y0);
     }
+    tricks.tick(dt);
     P.airT += dt;
   }
 
@@ -593,7 +639,15 @@ function stepPhysics(rawDt: number) {
   }
   P.wallT -= dt;
 
-  if (nz > 0) {
+  if (game.testCar) {
+    // ---- TEST TRACK (fenced, never leads to the run) ----
+    const B = TEST_BOUNDS;
+    if (nx < B.minX || nx > B.maxX || nz < B.minZ || nz > B.maxZ) {
+      if (Math.abs(P.speed) > 12) impact("wood", Math.abs(P.speed), "Smashed the fence");
+      nx = Math.max(B.minX, Math.min(B.maxX, nx));
+      nz = Math.max(B.minZ, Math.min(B.maxZ, nz));
+    }
+  } else if (nz > 0) {
     // ---- HUB ----
     if (nx < HUB_BOUNDS.minX || nx > HUB_BOUNDS.maxX || nz > HUB_BOUNDS.maxZ) {
       if (Math.abs(P.speed) > 12) impact("wood", Math.abs(P.speed), "Smashed the fence");
@@ -874,9 +928,9 @@ function stepLoop(dt: number) {
     P.yaw = Math.PI + loop.heading;
     P.grounded = true; P.vy = 0; P.lastS = lp.s + 0.6;
     const reward = Math.round(25 * P.combo);
-    award(reward); P.runTricks += 1;
+    award(reward); P.runTricks += 1; useSave.getState().addXp(20);
     P.combo = Math.min(5, P.combo + 0.5); P.bestCombo = Math.max(P.bestCombo, P.combo); P.comboT = 5;
-    audio.play("loop"); useGame.getState().popup("LOOP DE LOOP!", "cool", `+${reward} wheels`);
+    audio.play("loop"); useGame.getState().popup("LOOP DE LOOP!", "cool", `+${reward} wheels · +20 XP`);
   }
 }
 
@@ -898,6 +952,10 @@ function collectCoins(radius: number) {
 }
 
 function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>, game: ReturnType<typeof useGame.getState>) {
+  if (mode === "hub" && game.testCar) {
+    game.setHint("TEST DRIVE · Press Esc to finish");
+    return;
+  }
   if (mode === "hub") {
     let hint: string | null = null;
     for (const b of HUB_BUILDINGS) {
@@ -1001,6 +1059,15 @@ function events(ns: number, mode: string, stats: ReturnType<typeof currentStats>
     }
 
 
+    if (!finishMilestonePassed && P.lastS < MILESTONE_S && ns >= MILESTONE_S) {
+      finishMilestonePassed = true;
+      const time = P.runTime;
+      const bonus = 50 + Math.max(0, Math.round((90 - time) * 3));
+      award(bonus);
+      audio.play("finish");
+      game.setMilestone({ time, wheels: P.runWheels, tricks: P.runTricks, bestCombo: P.bestCombo, isBest: false, bonus });
+    }
+
     if (ns >= FINISH) {
       const time = P.runTime;
       const bonus = 50 + Math.max(0, Math.round((90 - time) * 3));
@@ -1052,4 +1119,41 @@ function publish(dt: number, mode: string) {
 function anyDriveKey() {
   return keys.size > 0;
   return false;
+}
+
+/** Spectator camera state (free camera, car frozen). */
+export const spec = { active: false, x: 0, y: 0, z: 0, yaw: 0, pitch: -0.2 };
+
+/** Fly / noclip / spectator cheats. Returns true when normal physics is skipped. */
+function freeMove(dt: number) {
+  const s = useSave.getState();
+  const mode = useGame.getState().mode;
+  const ch = s.cheatsUnlocked ? s.cheats : null;
+  const playing = mode === "run" || mode === "hub";
+  const specOn = !!ch?.spectator && playing;
+  if (specOn && !spec.active) { spec.x = P.x; spec.y = P.y + 4; spec.z = P.z; spec.yaw = P.yaw; spec.pitch = -0.2; }
+  spec.active = specOn;
+  const flying = playing && (specOn || ch?.fly || ch?.noclip);
+  if (!flying) return false;
+  const SPEED = (k.boost() && !specOn ? 3 : 1) * (ch?.superSpeed ? 2 : 1) * 30;
+  const turn = (k.left() ? 1 : 0) - (k.right() ? 1 : 0);
+  const fwd = (k.up() ? 1 : 0) - (k.down() ? 1 : 0);
+  const vert = (keys.has("KeyE") || keys.has("ShiftLeft") ? 1 : 0) - (keys.has("KeyQ") || keys.has("ControlLeft") ? 1 : 0);
+  if (specOn) {
+    spec.yaw += turn * 2 * dt;
+    spec.x += Math.sin(spec.yaw) * fwd * SPEED * dt;
+    spec.z += Math.cos(spec.yaw) * fwd * SPEED * dt;
+    spec.y += vert * SPEED * dt;
+    P.speed = 0; P.boosting = false;
+    return true;
+  }
+  P.yaw += turn * 2 * dt;
+  P.x += Math.sin(P.yaw) * fwd * SPEED * dt;
+  P.z += Math.cos(P.yaw) * fwd * SPEED * dt;
+  P.y += vert * SPEED * dt;
+  if (!ch?.noclip) P.y = Math.max(P.y, hAt(-P.z) + 0.5);
+  P.speed = fwd * SPEED; P.vy = 0; P.lateral = 0; P.grounded = false;
+  P.pitch = 0; P.roll = 0; P.tPitch = 0; P.tRoll = 0; P.tYaw = 0; P.loop = null;
+  P.boosting = k.boost() && fwd !== 0;
+  return true;
 }

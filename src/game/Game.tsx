@@ -8,8 +8,9 @@ import { HUD } from "./ui/HUD";
 import { bindInput, orbit, rebinding } from "./input";
 import { useGame, useSave } from "./store";
 import { audio } from "./audio";
-import { exitMenu, returnToLobby } from "./physics";
+import { endTestDrive, exitMenu, returnToLobby } from "./physics";
 import { LobbyMusic } from "./lobbyMusic";
+import { startAccount } from "./account";
 
 export function Game() {
   const [fontsReady, setFontsReady] = useState(false);
@@ -31,6 +32,7 @@ export function Game() {
   }, []);
 
   useEffect(() => bindInput(), []);
+  useEffect(() => startAccount(), []);
   useEffect(() => audio.setVolume(volume, muted), [volume, muted]);
 
   useEffect(() => {
@@ -69,11 +71,17 @@ export function Game() {
         }
         if (g.settingsOpen) g.setSettingsOpen(false);
         else if (g.mode === "menu") exitMenu();
+        else if (g.testCar) endTestDrive();
         else if (g.mode !== "title") g.setSettingsOpen(true);
       }
       if (e.code === "KeyR" && (g.mode === "run" || g.mode === "hub") && !g.settingsOpen && !g.chestOpen && !rebinding.active) {
         returnToLobby();
         g.popup("BACK TO LOBBY", "cool");
+      }
+      if (g.milestone && (e.code === "Space" || e.code === "Enter")) {
+        e.preventDefault();
+        g.setMilestone(null);
+        return;
       }
       if (e.code === "Space" && !g.settingsOpen && !g.chestOpen && (g.mode === "run" || g.mode === "finished")) {
         e.preventDefault();
