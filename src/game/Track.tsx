@@ -742,6 +742,45 @@ function Gantries() {
   );
 }
 
+function FinishArch() {
+  const s = 1000;
+  const tex = useMemo(() => signTexture("FINISH LINE", { bg: "#111", border: "#ffc933", sub: "1,000 M · KEEP GOING" }), []);
+  if (!inWin(s)) return null;
+  const ry = Math.atan2(dcAt(s), -1) + Math.PI;
+  return (
+    <group position={[cAt(s), hAt(s), -s]} rotation-y={ry}>
+      {[-1, 1].map((sd) => (
+        <group key={sd}>
+          <mesh position={[sd * (HALF + 1.2), 4.8, 0]} castShadow>
+            <boxGeometry args={[0.7, 9.6, 0.7]} />
+            <meshStandardMaterial color="#f4f1ea" metalness={0.6} roughness={0.3} />
+          </mesh>
+          {[2, 5, 8].map((y) => (
+            <mesh key={y} position={[sd * (HALF + 1.2), y, 0]}>
+              <boxGeometry args={[0.8, 0.35, 0.8]} />
+              <meshStandardMaterial color="#ffc933" metalness={0.9} roughness={0.25} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      <mesh position={[0, 9, 0]} castShadow>
+        <boxGeometry args={[HALF * 2 + 3.4, 2.8, 0.45]} />
+        <meshStandardMaterial color="#ffc933" metalness={0.8} roughness={0.3} />
+      </mesh>
+      {[0.24, -0.24].map((z) => (
+        <mesh key={z} position={[0, 9, z]} rotation-y={z < 0 ? Math.PI : 0}>
+          <planeGeometry args={[HALF * 2 + 2.8, 2.5]} />
+          <meshBasicMaterial map={tex} toneMapped={false} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.04, 0]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[HALF * 2, 1.4]} />
+        <meshStandardMaterial color="#ffc933" emissive="#ffc933" emissiveIntensity={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
 function Billboards() {
   const items = useMemo(() => BILLBOARDS_ALL.filter((b) => inWin(b.s)), []);
   return (
@@ -824,6 +863,7 @@ export function Track() {
       <Cones />
       <Barriers />
       <Gantries />
+      <FinishArch />
       <Billboards />
       <Scenery />
       <Rocks />

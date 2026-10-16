@@ -2,7 +2,8 @@ import { useFrame, type ThreeElements } from "@react-three/fiber";
 import { Clone, useGLTF } from "@react-three/drei";
 import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { DAILY_PAD, GATE_HALF, HUB_BUILDINGS, STATS_BOARD, type HubBuilding } from "./hub";
+import { DAILY_PAD, GATE_HALF, HUB_BUILDINGS, STATS_BOARD, TEST_BOUNDS, TEST_TRACK, type HubBuilding } from "./hub";
+import { CarModel } from "./CarModel";
 import {
   boardTexture,
   brickTexture,
@@ -216,8 +217,9 @@ function Showcase() {
   useFrame((_, dt) => {
     if (ref.current) ref.current.rotation.y += dt * 0.5;
   });
-  const { scene } = useGLTF("/models/race-future.glb");
-  const { scene: s2 } = useGLTF("/models/race.glb");
+  const selected = useSave((s) => s.selected);
+  const paint = useSave((s) => s.paints[s.selected] ?? null);
+  const avtrPaint = useSave((s) => s.paints["avtr"] ?? null);
   return (
     <>
       <group ref={ref} position={[0, 0.4, -4]}>
@@ -225,10 +227,10 @@ function Showcase() {
           <cylinderGeometry args={[3.4, 3.4, 0.25, 40]} />
           <meshStandardMaterial color="#222" metalness={0.7} roughness={0.25} />
         </mesh>
-        <Clone object={scene} scale={1.8} castShadow />
+        <CarModel key={selected + (paint ?? "")} carId={selected} paint={paint} />
       </group>
       <group position={[0, 0.2, 5]} rotation-y={0.6}>
-        <Clone object={s2} scale={1.8} castShadow />
+        <CarModel key={"avtr" + (avtrPaint ?? "")} carId="avtr" paint={avtrPaint} />
       </group>
     </>
   );
@@ -541,6 +543,7 @@ export function Hub() {
         </group>
       ))}
       <Fence />
+      <TestTrack />
       <Gate />
       <Trees />
 
@@ -549,6 +552,63 @@ export function Hub() {
       <Suspense fallback={null}>
         <Props />
       </Suspense>
+    </group>
+  );
+}
+
+/** Practice oval for dealership test drives — separate from the real run. */
+export function TestTrack() {
+  const T = TEST_TRACK;
+  const B = TEST_BOUNDS;
+  const ring = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.absellipse(0, 0, T.rx + T.width / 2, T.rz + T.width / 2, 0, Math.PI * 2, false, 0);
+    const hole = new THREE.Path();
+    hole.absellipse(0, 0, T.rx - T.width / 2, T.rz - T.width / 2, 0, Math.PI * 2, true, 0);
+    shape.holes.push(hole);
+    return new THREE.ShapeGeometry(shape, 64);
+  }, [T]);
+  const cones = useMemo(() => {
+    const out: [number, number][] = [];
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      out.push([T.x + Math.cos(a) * (T.rx + T.width / 2 + 1), T.z + Math.sin(a) * (T.rz + T.width / 2 + 1)]);
+    }
+    return out;
+  }, [T]);
+  const fence: [number, number, number, number][] = [
+    [(B.minX + B.maxX) / 2, B.minZ, B.maxX - B.minX, 0],
+    [(B.minX + B.maxX) / 2, B.maxZ, B.maxX - B.minX, 0],
+    [B.minX, (B.minZ + B.maxZ) / 2, B.maxZ - B.minZ, Math.PI / 2],
+    [B.maxX, (B.minZ + B.maxZ) / 2, B.maxZ - B.minZ, Math.PI / 2],
+  ];
+  return (
+    <group>
+      <mesh rotation-x={-Math.PI / 2} position={[(B.minX + B.maxX) / 2, 0.01, (B.minZ + B.maxZ) / 2]} receiveShadow>
+        <planeGeometry args={[B.maxX - B.minX, B.maxZ - B.minZ]} />
+        <meshStandardMaterial color="#7fb04e" roughness={1} />
+      </mesh>
+      <mesh geometry={ring} rotation-x={-Math.PI / 2} position={[T.x, 0.03, T.z]} receiveShadow>
+        <meshStandardMaterial color="#55585e" roughness={0.9} />
+      </mesh>
+      {/* start / finish stripe */}
+      <mesh rotation-x={-Math.PI / 2} position={[T.x, 0.05, T.z - T.rz]}>
+        <planeGeometry args={[1.2, T.width]} />
+        <meshBasicMaterial color="#f4f4f4" />
+      </mesh>
+      {cones.map(([x, z], i) => (
+        <mesh key={i} position={[x, 0.45, z]} castShadow>
+          <coneGeometry args={[0.35, 0.9, 10]} />
+          <meshStandardMaterial color={i % 2 ? "#f4f4f4" : "#ff6a1f"} />
+        </mesh>
+      ))}
+      {fence.map(([x, z, len, r], i) => (
+        <mesh key={i} position={[x, 0.6, z]} rotation-y={r} castShadow>
+          <boxGeometry args={[len, 1.2, 0.3]} />
+          <meshStandardMaterial map={woodTexture()} roughness={0.9} />
+        </mesh>
+      ))}
+      <Sign text="TEST TRACK" sub="PRACTICE ONLY · ESC TO FINISH" w={14} h={3} bg="#1d2b4a" border="#22e4ff" position={[T.x, 4, T.z]} rotation-y={Math.PI} />
     </group>
   );
 }

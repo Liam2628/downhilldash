@@ -1,4 +1,8 @@
 # Roadmap
+- [ ] Finish car visuals: full-sized elite cars, distinct silhouettes, AVTR polish, automated and live dealership/driving checks
+- [x] Add eight max-stat elite cars above Hyperion X, with special abilities and a 500,000-wheel Mercedes Vision AVTR
+- [x] Expanded tricks: many flip/roll/spin variants, mid-rotation transitions count, chains/combos, no double counting, extensible registry
+- [ ] Expand garage customization and tuning shop upgrades; verify purchases, persistence, models and driving
 - [ ] Boost placement: flat approaches to ramps/loops, even spacing with occasional pairs, unchanged boost visuals/behavior; five gameplay variations per area and regression/live checks
 - [x] Track feel: 100 m clean downhill opening, 300–600 m interesting areas, triangle-grounded scenery, stronger actual downhill acceleration and closer/lower speed camera; regression tests and browser-driven travel checked (later-area screenshot timed out)
 - [x] Add five renamed lobby-only music tracks with an extensible playlist; automated mute/mode/playlist tests pass and all audio URLs return successfully (audible playback not confirmed in headless browser)
@@ -45,3 +49,6 @@
 - [x] Cones as one object, no ground sinking/line
 - [x] Hills shrink gradually near lobby (not too early)
 - [x] Finish Phase 3 Session 3 (long-run verification)
+- [x] Settings option to hide all UI during runs
+- [ ] Accounts: username/password + optional email, Google, cloud save; pop up after 3 min play when signed out; account section in Settings
+- [ ] Sign-in option on the title (landing) screen
