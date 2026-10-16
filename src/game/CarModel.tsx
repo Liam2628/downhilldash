@@ -122,20 +122,44 @@ function buildAvtr(paint: string | null) {
   const rear = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.05), new THREE.MeshBasicMaterial({ color: "#ff3355", toneMapped: false }));
   rear.position.set(0, 0.75, -2.15);
   root.add(rear);
-  // 33 bionic flaps on the back, in 3 rows
-  for (let row = 0; row < 3; row++) {
-    for (let i = 0; i < 11; i++) {
-      const flap = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.025, 0.22), i % 2 ? copper : dark);
-      flap.position.set((i - 5) * 0.13, 0.98 - row * 0.1, -1.55 - row * 0.18);
-      flap.rotation.x = 0.45 + row * 0.15;
-      root.add(flap);
-      if ((i + row) % 3 === 0) {
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 4), glow);
-        dot.position.set(flap.position.x, flap.position.y + 0.03, flap.position.z);
-        root.add(dot);
-      }
+  // 33 bionic flaps: reptile-like scales across the rear deck, staggered rows
+  // following the body curve, trailing edges lifted with a glow beneath.
+  const scaleShape = new THREE.Shape();
+  scaleShape.moveTo(-0.07, 0);
+  scaleShape.quadraticCurveTo(-0.085, 0.12, -0.05, 0.2);
+  scaleShape.quadraticCurveTo(0, 0.26, 0.05, 0.2);
+  scaleShape.quadraticCurveTo(0.085, 0.12, 0.07, 0);
+  scaleShape.quadraticCurveTo(0, -0.025, -0.07, 0);
+  const scaleGeo = new THREE.ExtrudeGeometry(scaleShape, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 6 });
+  scaleGeo.rotateX(-Math.PI / 2); // lay flat, pointing toward -Z after flip below
+  scaleGeo.rotateY(Math.PI);
+  const flapMat = new THREE.MeshStandardMaterial({ color: "#3a3f46", metalness: 0.85, roughness: 0.28 });
+  const flapEdge = new THREE.MeshStandardMaterial({ color: "#8e959d", metalness: 0.95, roughness: 0.18 });
+  const underGlow = new THREE.MeshBasicMaterial({ color: "#5fe8ff", toneMapped: false, transparent: true, opacity: 0.75 });
+  const glowGeo = new THREE.PlaneGeometry(0.1, 0.16);
+  const rows = [6, 7, 7, 7, 6];
+  rows.forEach((count, row) => {
+    const z = -1.32 - row * 0.17;
+    const halfW = 0.62 - Math.abs(row - 1.5) * 0.06;
+    const deckY = 0.97 - row * row * 0.018 - row * 0.03;
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0 : i / (count - 1) - 0.5;
+      const x = t * 2 * halfW;
+      const y = deckY - (x * x) * 0.28; // follow the rounded body sides
+      const pivot = new THREE.Group();
+      pivot.position.set(x, y, z);
+      pivot.rotation.z = -x * 0.55; // bank with the body curve
+      const flap = new THREE.Mesh(scaleGeo, i % 3 === 1 ? flapEdge : flapMat);
+      flap.rotation.x = -(0.22 + row * 0.05); // lift trailing edge
+      flap.castShadow = true;
+      pivot.add(flap);
+      const g = new THREE.Mesh(glowGeo, underGlow);
+      g.rotation.x = -Math.PI / 2;
+      g.position.set(0, 0.004, -0.09);
+      pivot.add(g);
+      root.add(pivot);
     }
-  }
+  });
   // dark skirt
   const skirt = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.18, 3.6), dark);
   skirt.position.y = 0.36;
